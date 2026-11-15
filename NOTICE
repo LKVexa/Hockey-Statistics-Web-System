@@ -1,4 +1,4 @@
-RINK-VT Workbench, LK/Vexa edition (Photon-hosted) 2.5.0-lkvexa.1
+RINK-VT Workbench, LK/Vexa edition (Photon-hosted) 2.5.0-lkvexa.3
 Copyright (C) 2026 RUSSELL PHILIP SMITHSON
 Licensed under the GNU General Public License, version 3 only (GPL-3.0-only). See LICENSE and COPYRIGHT.
 
@@ -7,7 +7,9 @@ Provenance
                  RINK-VT statistics terminal), by the same author: the command language, frames, game actor,
                  models, roster importer and the HK001 laboratory, as source files, unchanged by this edition
                  except where the reference edition itself changed them for it (a host-kept league), and for
-                 the start frame (START) added in 2.5.0-lkvexa.2, which keeps every earlier behaviour.
+                 the start frame (START) added in 2.5.0-lkvexa.2 and the whistle (WHISTLE) and league overtime
+                 rules (rink overtime) added in 2.5.0-lkvexa.3, which keep every earlier behaviour: a game without
+                 league rules plays and replays exactly as before.
   engine/rink/hk001/
                  Contains code derived from the Go standard library; its notices and licence terms are kept in
                  engine/rink/hk001/NOTICE.md and continue to apply to those parts.

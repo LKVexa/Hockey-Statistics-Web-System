@@ -23,7 +23,7 @@ function scoreLine(sb, o = {}) {
   const H = sb.home, A = sb.away; const ds = o.nowNs ? liveRemainingDs(sb, o.nowNs) : sb.remainingDs;
   const pen = (sb.penalties || []).map((p) => `${p.team} ${p.code || '?'} ${p.infraction || p.kind}`).join(', ');
   if (sb.final) return `${c('bold', H)} ${c('bold', String(sb.score[H]))} ${c('grey', '–')} ${c('bold', String(sb.score[A]))} ${c('bold', A)}  ${c('amber', 'FINAL' + (sb.final.decidedIn && sb.final.decidedIn !== 'REG' ? '/' + sb.final.decidedIn : ''))}`;
-  return `${c('bold', H)} ${c('bold', String(sb.score[H]))} ${c('grey', '–')} ${c('bold', String(sb.score[A]))} ${c('bold', A)}  ${c('cyan', sb.periodText)} ${clockOf(ds)} ${sb.running ? c('green', '▶') : c('grey', '⏸')}  ${c('grey', sb.strength)}${pen ? c('amber', '  PEN ' + pen) : ''}`;
+  return `${c('bold', H)} ${c('bold', String(sb.score[H]))} ${c('grey', '–')} ${c('bold', String(sb.score[A]))} ${c('bold', A)}  ${c('cyan', sb.periodText)} ${clockOf(ds)} ${sb.running ? c('green', '▶') : c('grey', sb.whistleStop ? '⏸ whistle' : '⏸')}  ${c('grey', sb.strength)}${pen ? c('amber', '  PEN ' + pen) : ''}`;
 }
 /** One line per frame result of a submitted command line. */
 function results(res, o = {}) {
@@ -100,8 +100,9 @@ function player(d, o = {}) {
 }
 function standings(d, o = {}) {
   const c = fmt.paint(o.color !== false);
-  return table([{ h: 'team' }, { h: 'GP', align: 'r' }, { h: 'W', align: 'r' }, { h: 'L', align: 'r' }, { h: 'OTL', align: 'r' }, { h: 'PTS', align: 'r' }, { h: 'P%', align: 'r' }, { h: 'RW', align: 'r' }, { h: 'GF', align: 'r' }, { h: 'GA', align: 'r' }, { h: 'DIFF', align: 'r' }, { h: 'xGF', align: 'r' }, { h: 'xGA', align: 'r' }, { h: 'live', align: 'r' }],
-    d.standings.map((r) => [c('cyan', r.team), r.gp, r.w, r.l, r.otl, c('bold', String(r.pts)), r.ptsPct === null ? '—' : r.ptsPct.toFixed(3), r.rw, r.gf, r.ga, sgn(r.diff, 0), f1(r.xgf), f1(r.xga), r.live || '']), o) + '\n' + c('grey', d.rule);
+  const ties = d.standings.some((r) => r.t);          // the T column appears once a tie stands
+  return table([{ h: 'team' }, { h: 'GP', align: 'r' }, { h: 'W', align: 'r' }, { h: 'L', align: 'r' }, { h: 'OTL', align: 'r' }, ...(ties ? [{ h: 'T', align: 'r' }] : []), { h: 'PTS', align: 'r' }, { h: 'P%', align: 'r' }, { h: 'RW', align: 'r' }, { h: 'GF', align: 'r' }, { h: 'GA', align: 'r' }, { h: 'DIFF', align: 'r' }, { h: 'xGF', align: 'r' }, { h: 'xGA', align: 'r' }, { h: 'live', align: 'r' }],
+    d.standings.map((r) => [c('cyan', r.team), r.gp, r.w, r.l, r.otl, ...(ties ? [r.t || 0] : []), c('bold', String(r.pts)), r.ptsPct === null ? '—' : r.ptsPct.toFixed(3), r.rw, r.gf, r.ga, sgn(r.diff, 0), f1(r.xgf), f1(r.xga), r.live || '']), o) + '\n' + c('grey', d.rule);
 }
 function leaders(d, o = {}) {
   const c = fmt.paint(o.color !== false); const col = (title, list, dec) => [c('bold', title), ...list.map((r, i) => `${String(i + 1).padStart(2)}. ${c('cyan', r.team + ' ' + r.code)} ${fmt.cut(r.name, 18).padEnd(18)} ${dec ? Number(r.value).toFixed(2) : r.value}`)];

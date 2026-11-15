@@ -14,8 +14,9 @@
  * discounting, goalie attribution, plus/minus.
  * Declared rules (documented in docs/RINK-VT.md): rebound ≤ 3.0 s, rush ≤ 4.0 s after a transition event,
  * assist window 15 s of operator time (held open until the next primary event), PP-expiry flag 15 s.
- * REGULAR games play a 5-minute overtime and then a shootout; every other stage plays 20-minute sudden-death
- * overtime periods.
+ * Overtime follows the game's own rules (overtime.js): a league sets them (rink overtime) and each game created for
+ * its teams keeps a copy. A game without them keeps the built-in rules — a REGULAR game plays a 5-minute 3-on-3
+ * overtime and then a shootout of 3 rounds; every other stage plays 20-minute sudden-death overtime periods.
  *
  * Trust boundary: a frame is client-supplied bytes. The actor accepts only what the lexer could have produced
  * (wire.decode is strict; STAT and MODIFIER are checked against the HCL grammar; clock, period, coordinates and
@@ -26,25 +27,28 @@ const wire = require('../shared/wire');
 const hcl = require('../shared/hcl');
 const XG = require('../shared/xg');
 const hash = require('../shared/hash');
+const OT = require('./overtime');
 
 const P_LEN = 1200;                                  // regulation period, seconds
 const REB_S = 3.0, RUSH_S = 4.0, ASSIST_NS = 15n * 1000000000n, PPX_S = 15;
 const DS_NS = 100000000n;                            // one decisecond in ns (10 Hz scoreboard)
 
-const periodLength = (stage, p) => (p >= 5 && stage === 'REGULAR' ? 0 : p === 4 && stage === 'REGULAR' ? 300 : P_LEN);
-const maxPeriod = (stage) => (stage === 'REGULAR' ? 5 : hcl.MAX_PERIOD);
+/* The period helpers take a game (its overtime rules) or a stage name (the built-in rules of that stage). */
+const periodLength = (game, p) => OT.periodLength(OT.block(game), p);
+const maxPeriod = (game) => OT.maxPeriod(OT.block(game));
 const DEFAULT_MAX_FRAMES = 20000;                    // accepted frames per game (a real game is 1 000 – 2 000)
 const CORRECTIONS = new Set(['UND', 'DEL', 'FXP', 'FXS', 'FXC', 'FXA']);
 /* "5v4" and friends: one shared string per manpower pair (skaters() stays within 0..7) */
 const STRENGTH = Array.from({ length: 9 }, (_, a) => Array.from({ length: 9 }, (__, b) => `${a}v${b}`));
 /** a rejection that changed nothing in the fold state (no re-fold needed) */
 const pure = (error) => ({ status: 'REJECTED', error, pure: true });
-function elapsedOf(stage, period, remainingDs) {
-  let e = 0; for (let p = 1; p < period; p++) e += periodLength(stage, p);
-  return Math.round((e + (periodLength(stage, period) - remainingDs / 10)) * 10) / 10;
+function elapsedOf(game, period, remainingDs) {
+  const b = OT.block(game);
+  let e = 0; for (let p = 1; p < period; p++) e += OT.periodLength(b, p);
+  return Math.round((e + (OT.periodLength(b, period) - remainingDs / 10)) * 10) / 10;
 }
 const clockText = (ds) => `${Math.floor(ds / 600)}:${String(Math.floor(ds / 10) % 60).padStart(2, '0')}${ds % 10 ? '.' + (ds % 10) : ''}`;
-const periodText = (p, stage) => (p <= 3 ? 'P' + p : p === 4 && stage === 'REGULAR' ? 'OT' : p === 5 && stage === 'REGULAR' ? 'SO' : 'OT' + (p - 3));
+const periodText = (p, game) => OT.periodText(OT.block(game), p);
 
 function freshState(game) {
   const H = game.home, A = game.away;
@@ -53,6 +57,7 @@ function freshState(game) {
     game, version: 0,
     clock: { period: 1, remainingDs: P_LEN * 10, running: false, refNs: 0n, final: false },
     started: null,                                    // the start frame: { atNs, period, remainingDs }; null before the game starts
+    whistles: [],                                     // every whistle (WHISTLE): { period, remainingDs } in game order
     clockHistory: [],                                 // [{ atNs, period, remainingDs, running }]
     teams: { [H]: team(), [A]: team() },
     onIce: { [H]: new Set(), [A]: new Set() }, goalie: { [H]: game.starters && game.starters[H] || null, [A]: game.starters && game.starters[A] || null },
@@ -125,7 +130,7 @@ class GameActor {
   /** A frame that was already applied: say so, with enough of the original outcome to show the operator. */
   _duplicate(entry) {
     const out = { status: 'DUPLICATE', original: entry.status, text: wire.describe(entry.f) };
-    if (entry.seq !== undefined) { out.event_seq = entry.seq; const ev = this.s.bySeq.get(entry.seq); if (ev) out.latched_clock = `${periodText(ev.period, this.game.stage)} ${clockText(ev.clockDs)}`; }
+    if (entry.seq !== undefined) { out.event_seq = entry.seq; const ev = this.s.bySeq.get(entry.seq); if (ev) out.latched_clock = `${periodText(ev.period, this.game)} ${clockText(ev.clockDs)}`; }
     return out;
   }
   /**
@@ -275,60 +280,100 @@ class GameActor {
     // stays ordered, and a late STOP cannot rewind the scoreboard under events that were scored meanwhile.
     const h = s.clockHistory; const last = h.length ? h[h.length - 1] : null;
     let at = entry.f.commitNs; if (at < s.lastNs) at = s.lastNs; if (last && at < last.atNs) at = last.atNs;
-    const now = this._clockAt(s, at); const c = s.clock; const stage = this.game.stage;
-    if (!['set', 'start', 'go', 'stop', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
+    const now = this._clockAt(s, at); const c = s.clock; const g = this.game; const b = OT.block(g);
+    if (!['set', 'start', 'go', 'stop', 'whistle', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
     if (s.result && f.action !== 'set') return pure('the game is final');
     let period = now.period, rem = now.remainingDs, running = last ? last.running : false;
     if (f.action === 'set') {
       if (f.remainingDs === null || f.remainingDs === undefined) return pure('T needs a clock time');
-      if (f.period && f.period > maxPeriod(stage)) return pure(stage === 'REGULAR' ? 'a regular-season game ends with the shootout (SO); there is no later period' : `no period ${f.period}`);
+      if (f.period && f.period > OT.maxPeriod(b)) return pure(this._noLaterPeriod(b, f.period));
+      if (f.period && !OT.validPeriod(b, f.period)) return pure(`this game plays no overtime period (${OT.summary(b)}); a tie after P3 goes ${b.so ? 'to the shootout (SO)' : 'into the books'}`);
     }
-    if (f.action === 'next' && !this._decidedAtPeriodEnd(s, period) && period + 1 > maxPeriod(stage)) return pure(stage === 'REGULAR' ? 'the shootout decides the game; type the attempts, or END' : 'no further overtime period; use END');
+    if (f.action === 'next' && !this._decidedAtPeriodEnd(s, period) && OT.nextPeriod(b, period) > OT.maxPeriod(b)) return pure(OT.isShootout(b, period) ? 'the shootout decides the game; type the attempts, or END' : 'no further overtime period; use END');
     if (f.action === 'end' || (f.action === 'next' && this._decidedAtPeriodEnd(s, period))) {
-      this._advance(s, elapsedOf(stage, period, f.action === 'end' ? rem : 0));
-      this._closeStint(s, elapsedOf(stage, period, f.action === 'end' ? rem : 0));
-      h.push({ atNs: at, period, remainingDs: f.action === 'end' ? rem : 0, running: false });
-      Object.assign(c, { period, remainingDs: f.action === 'end' ? rem : 0, running: false, refNs: at });
-      this._finalize(s, period <= 3 ? 'REG' : stage === 'REGULAR' && period === 5 ? 'SO' : 'OT');
+      const endRem = f.action === 'end' ? rem : 0;
+      this._advance(s, elapsedOf(g, period, endRem));
+      this._closeStint(s, elapsedOf(g, period, endRem));
+      h.push({ atNs: at, period, remainingDs: endRem, running: false });
+      Object.assign(c, { period, remainingDs: endRem, running: false, refNs: at });
+      this._finalize(s, period <= 3 ? 'REG' : OT.isShootout(b, period) ? 'SO' : 'OT');
       return { status: 'APPLIED', clock: 'FINAL', result: s.result };
     }
     // The start frame (START) is the opening faceoff: the clock never runs before it. In a game created under the
     // start-frame rule (game.start === 'frame') GO is refused until START; in a game of an earlier build the first GO
     // starts the game, as it always did, so its ledger replays unchanged.
     if (f.action === 'start') {
-      if (s.started) return pure(`the game started at ${periodText(s.started.period, stage)} ${clockText(s.started.remainingDs)}; GO restarts the clock after a stoppage`);
+      if (s.started) return pure(`the game started at ${periodText(s.started.period, g)} ${clockText(s.started.remainingDs)}; GO restarts the clock after a stoppage`);
       if (rem <= 0) return pure('the period clock is at 0:00; use T mm:ss first');
       running = true;
-    } else if (f.action === 'go' && !s.started && this.game.start === 'frame') return pure('the game has not started: type START at the opening faceoff');
+    } else if (f.action === 'go' && !s.started && g.start === 'frame') return pure('the game has not started: type START at the opening faceoff');
+    // WHISTLE is the whistle: the clock stops and play is dead until the faceoff. With a time (WHISTLE 12:34, what
+    // the official clock showed when the whistle went) the clock also reads that time, so the moments between the
+    // whistle and the keystroke are taken back. On a clock a whistle already stopped, WHISTLE mm:ss sets that
+    // whistle's time; on a clock STOP stopped, it makes the stoppage a whistle.
+    let whistle = null;
+    if (f.action === 'whistle') {
+      const timed = f.remainingDs !== null && f.remainingDs !== undefined;
+      if (OT.isShootout(b, period)) return pure('the shootout has no clock to stop');
+      if (!this._ranIn(h, period)) return pure(!s.started ? 'the game has not started: there is no play for a whistle to stop' : `the clock has not run in ${periodText(period, g)}: there is no play for a whistle to stop`);
+      if (!running && !timed) return pure(`the clock is already stopped at ${periodText(period, g)} ${clockText(rem)}; GO restarts it · WHISTLE mm:ss sets the time the whistle went`);
+      if (timed) {
+        const len = OT.periodLength(b, period) * 10;
+        if (f.remainingDs > len) return pure(`${periodText(period, g)} is ${clockText(len)} long; WHISTLE takes the time on the official clock`);
+        rem = f.remainingDs;
+      }
+      whistle = { amend: !running && !!(last && last.whistle) };
+      running = false; s.stoppage = true;
+    }
     if (f.action === 'go') { if (rem <= 0) return pure('the period clock is at 0:00; use NEXT or T mm:ss'); running = true; }
     else if (f.action === 'stop') { running = false; s.stoppage = true; }
-    else if (f.action === 'set') { rem = f.remainingDs; if (f.period) period = f.period; if (rem > periodLength(stage, period) * 10) rem = periodLength(stage, period) * 10; }
-    else if (f.action === 'next') { period = period + 1; rem = periodLength(stage, period) * 10; running = false; }
+    else if (f.action === 'set') { rem = f.remainingDs; if (f.period) period = f.period; const len = OT.periodLength(b, period) * 10; if (rem > len) rem = len; }
+    else if (f.action === 'next') { period = OT.nextPeriod(b, period); rem = OT.periodLength(b, period) * 10; running = false; }
     const changedPeriod = period !== c.period;
-    const el = elapsedOf(stage, period, rem);
+    const el = elapsedOf(g, period, rem);
     if (changedPeriod) {
-      this._advance(s, elapsedOf(stage, c.period, Math.min(c.remainingDs, now.remainingDs)));
-      if (period === 5 && stage === 'REGULAR') this._closeStint(s, s.lastEl);
+      this._advance(s, elapsedOf(g, c.period, Math.min(c.remainingDs, now.remainingDs)));
+      if (OT.isShootout(b, period)) this._closeStint(s, s.lastEl);
       s.pendingZone = 'NEU'; s.stoppage = true; s.causal.flurry = null;
     }
-    // T moved the clock back (a scoreboard correction, or NEXT typed too early): the stint in progress ends where
-    // play had reached and a new one starts at the corrected time, so the corrected interval is counted once more
-    // only if it is actually played again.
-    const back = f.action === 'set' && el < s.lastEl;
-    if (back) { this._advance(s, elapsedOf(stage, c.period, Math.min(c.remainingDs, now.remainingDs))); this._closeStint(s, s.lastEl); s.lastEl = el; }
+    // T moved the clock back (a scoreboard correction, or NEXT typed too early), or WHISTLE took back the moments
+    // after the whistle: the stint in progress ends where play had reached and a new one starts at the corrected
+    // time, so the corrected interval is counted once more only if it is actually played again.
+    const back = (f.action === 'set' || f.action === 'whistle') && el < s.lastEl;
+    if (back) { this._advance(s, elapsedOf(g, c.period, Math.min(c.remainingDs, now.remainingDs))); this._closeStint(s, s.lastEl); s.lastEl = el; }
     else if (changedPeriod) this._advance(s, el);     // the earlier period is over: penalties run to its end, and nothing typed late may land before this point
-    h.push({ atNs: at, period, remainingDs: rem, running });
+    h.push(whistle ? { atNs: at, period, remainingDs: rem, running, whistle: true } : { atNs: at, period, remainingDs: rem, running });
     Object.assign(c, { period, remainingDs: rem, running, refNs: at });
     if (!s.started && (f.action === 'start' || f.action === 'go')) s.started = { atNs: at, period, remainingDs: rem };
-    if ((changedPeriod && !(period === 5 && stage === 'REGULAR')) || (back && !(stage === 'REGULAR' && period >= 5))) this._rotate(s, el, changedPeriod ? 'NEU' : 'OTF');
-    return { status: 'APPLIED', clock: `${periodText(period, stage)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}${f.action === 'start' ? ' · game started' : ''}` };
+    let note = f.action === 'start' ? ' · game started' : '';
+    if (whistle) {
+      const rec = { period, remainingDs: rem };
+      if (whistle.amend && s.whistles.length) s.whistles[s.whistles.length - 1] = rec; else s.whistles.push(rec);
+      const k = s.whistles.filter((w) => w.period === period).length;
+      note = ` · whistle ${k} of ${periodText(period, g)}${whistle.amend ? ' (time set)' : ''}`;
+    }
+    if ((changedPeriod || back) && !OT.isShootout(b, period)) this._rotate(s, el, changedPeriod ? 'NEU' : 'OTF');
+    return { status: 'APPLIED', clock: `${periodText(period, g)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}${note}` };
   }
-  _decidedAtPeriodEnd(s, period) { const H = this.game.home, A = this.game.away; return period >= 3 && period !== 5 && s.teams[H].score !== s.teams[A].score; }
+  /** has the clock run in this period (since it began)? */
+  _ranIn(h, period) {
+    for (let i = h.length - 1; i >= 0; i--) { if (h[i].period !== period) return false; if (h[i].running) return true; }
+    return false;
+  }
+  _noLaterPeriod(b, p) {
+    if (b.so > 0) return `${this.game.stage === 'REGULAR' ? 'a regular-season game' : 'this game'} ends with the shootout (SO); there is no later period`;
+    if (b.repeat) return `no period ${p}`;
+    return `no period ${p}: this game ends after ${b.ot ? 'OT' : 'P3'}, and a tie stands`;
+  }
+  _decidedAtPeriodEnd(s, period) {
+    const H = this.game.home, A = this.game.away, b = OT.block(this.game);
+    return period >= 3 && !OT.isShootout(b, period) && (s.teams[H].score !== s.teams[A].score || OT.tieStandsAfter(b, period));
+  }
   _checkFinal(s) {
     if (s.result) return;
-    const H = this.game.home, A = this.game.away, c = s.clock, reg = this.game.stage === 'REGULAR';
-    if (c.period >= 4 && (!reg || c.period === 4) && s.teams[H].score !== s.teams[A].score) return this._finalize(s, 'OT');   // sudden death
-    if (reg && c.period >= 5 && s.soRoundsComplete && s.teams[H].soGoals !== s.teams[A].soGoals) return this._finalize(s, 'SO');
+    const H = this.game.home, A = this.game.away, c = s.clock, b = OT.block(this.game);
+    if (c.period >= 4 && !OT.isShootout(b, c.period) && s.teams[H].score !== s.teams[A].score) return this._finalize(s, 'OT');   // sudden death
+    if (OT.isShootout(b, c.period) && s.soRoundsComplete && s.teams[H].soGoals !== s.teams[A].soGoals) return this._finalize(s, 'SO');
     return undefined;
   }
   _finalize(s, decided) {
@@ -372,12 +417,12 @@ class GameActor {
   activePenalties(s, team) { return s.penalties.filter((p) => p.team === team && p.active && !p.done && p.strength).length; }
   skaters(s, team) {
     const opp = team === this.game.home ? this.game.away : this.game.home;
-    const otReg = this.game.stage === 'REGULAR' && s.clock.period === 4;
+    const K = OT.overtimeSkaters(OT.block(this.game), s.clock.period);   // overtime played short-handed (3 or 4 a side)
     const mine = this.activePenalties(s, team), theirs = this.activePenalties(s, opp);
     let n;
     // a tracked team never has fewer than three skaters: an unfinished lineup falls back to the penalty count
     if (s.shiftTracked[team] && s.onIce[team].size >= 3) n = s.onIce[team].size;
-    else if (otReg) n = Math.min(5, 3 + Math.max(0, theirs - mine));
+    else if (K) n = OT.shortSkaters(K, mine, theirs);
     else n = Math.max(3, 5 - Math.min(2, mine));
     if (!(s.shiftTracked[team] && s.onIce[team].size >= 3) && !s.goalie[team] && s.goalieKnown[team]) n += 1;   // goalie pulled: extra attacker
     return n;
@@ -410,7 +455,7 @@ class GameActor {
     if (el < s.lastEl) el = s.lastEl;                 // a frame latched in the past rotates lines now, not then
     else s.lastEl = el;
     this._closeStint(s, el);
-    if (s.result || (this.game.stage === 'REGULAR' && s.clock.period >= 5)) return;
+    if (s.result || OT.isShootout(OT.block(this.game), s.clock.period)) return;
     const H = this.game.home, A = this.game.away;
     s.active = { id: s.stints.length + 1, period: s.clock.period, startEl: el, endEl: el, strength: this.strength(s, H), homeSit: this.situation(s, H), awaySit: this.situation(s, A),
       homeScoreDiff: s.teams[H].score - s.teams[A].score, zoneStart: zone, ppExpiry: el - s.lastPenaltyExpiryEl <= PPX_S,
@@ -461,7 +506,7 @@ class GameActor {
   }
 
   /* ---------- the ICRE for tri-token events ---------- */
-  _latchEl(s, onsetNs) { const c = this._clockAt(s, onsetNs); return { period: c.period, remainingDs: c.remainingDs, el: elapsedOf(this.game.stage, c.period, c.remainingDs) }; }
+  _latchEl(s, onsetNs) { const c = this._clockAt(s, onsetNs); return { period: c.period, remainingDs: c.remainingDs, el: elapsedOf(this.game, c.period, c.remainingDs) }; }
   _event(s, f, entry, rev, assistOverride, refolding) {
     const g = this.game, team = f.team;
     if (team !== g.home && team !== g.away) return pure(`${team} is not playing in ${g.key} (${g.home} vs ${g.away})`);
@@ -474,7 +519,7 @@ class GameActor {
     if (s.result && stat !== 'A' && stat !== 'A1' && stat !== 'A2') return pure(`${g.key} is final (${s.result.decidedIn})`);
     if (s.ejected.has(p.pid) && stat !== 'A' && stat !== 'A1' && stat !== 'A2') return pure(`${team} ${p.code} was ejected from this game`);
     const latch = this._latchEl(s, entry.f.onsetNs);
-    const so = g.stage === 'REGULAR' && latch.period === 5;
+    const so = OT.isShootout(OT.block(g), latch.period);
     // goalie crease set (spec shift_tok "G")
     if (stat === 'G' && p.pos === 'G') return this._shift(s, team, p, 'IN', latch.el, entry);
     if (stat === 'IN' || stat === 'OUT') return this._shift(s, team, p, stat, latch.el, entry);
@@ -498,7 +543,8 @@ class GameActor {
       if (stat === 'G') { s.teams[team].soGoals++; }
       s.soAttempts = s.soAttempts || { [g.home]: 0, [g.away]: 0 }; s.soAttempts[team]++;
       const ah = s.soAttempts[g.home], aa = s.soAttempts[g.away], sh = s.teams[g.home].soGoals, sa = s.teams[g.away].soGoals;
-      if ((ah >= 3 && aa >= 3 && ah === aa && sh !== sa) || (ah <= 3 && aa <= 3 && (sh > sa + (3 - aa) || sa > sh + (3 - ah)))) { s.soRoundsComplete = true; this._checkFinal(s); }
+      const R = OT.block(g).so;            // rounds before sudden death: the game's rules (3 by default)
+      if ((ah >= R && aa >= R && ah === aa && sh !== sa) || (ah <= R && aa <= R && (sh > sa + (R - aa) || sa > sh + (R - ah)))) { s.soRoundsComplete = true; this._checkFinal(s); }
       ev.text = this._text(ev); this._push(s, ev);
       return { status: 'COMMITTED', event_seq: ev.seq, shootout: `${g.home} ${s.teams[g.home].soGoals} – ${g.away} ${s.teams[g.away].soGoals}` };
     }
@@ -560,7 +606,7 @@ class GameActor {
     if (stat !== 'G') s.causal.openGoal = s.causal.openGoal && s.causal.openGoal.assistsAllowed ? Object.assign(s.causal.openGoal, { closedByEvent: true }) : null;
     ev.text = this._text(ev);
     this._push(s, ev);
-    const res = { status: 'COMMITTED', event_seq: ev.seq, latched_clock: `${periodText(ev.period, g.stage)} ${clockText(ev.clockDs)}`, team, player: p.name, code: p.code, stat, score: `${g.home} ${s.teams[g.home].score} – ${g.away} ${s.teams[g.away].score}`, strength: ev.strength };
+    const res = { status: 'COMMITTED', event_seq: ev.seq, latched_clock: `${periodText(ev.period, g)} ${clockText(ev.clockDs)}`, team, player: p.name, code: p.code, stat, score: `${g.home} ${s.teams[g.home].score} – ${g.away} ${s.teams[g.away].score}`, strength: ev.strength };
     if (kind === 'shot') Object.assign(res, { coords: [ev.x, ev.y], coord_source: ev.coordSource, xg: ev.xg, flurry_adj_xg: ev.xgF, danger: ev.danger, rebound: ev.rebound, rush: ev.rush });
     if (ev.auto) res.auto = `${opp} ${ev.auto.code} ${ev.auto.stat}`;
     if (ev.penalty) res.penalty = ev.penalty;
@@ -588,7 +634,7 @@ class GameActor {
     s.causal.openGoal = { seq: ev.seq, team, commitNs: BigInt(ev.commitNs), assists: 0, assistsAllowed: true, closedByEvent: false };
     s.stoppage = true; s.causal.flurry = null; s.pendingZone = 'NEU';
     this._rotate(s, el, 'NEU');
-    if (g.stage === 'REGULAR' ? s.clock.period === 4 : s.clock.period >= 4) this._checkFinal(s);
+    if (s.clock.period >= 4 && !OT.isShootout(OT.block(g), s.clock.period)) this._checkFinal(s);
   }
   _penalty(s, ev, team, opp, p, b, el) {
     const minutes = Number(ev.stat.slice(1));
@@ -682,12 +728,18 @@ class GameActor {
     if (s.active) { const now = this._latchEl(s, wire.nowNs()).el; if (now > s.active.startEl) out.push(Object.assign({}, s.active, { endEl: now, live: true })); }
     return out;
   }
+  /** The overtime rules deciding this game: whose they are and what happens if regulation ends tied. */
+  overtime() {
+    const g = this.game, b = OT.block(g);
+    return { rules: g.ot ? 'league' : 'built-in', league: g.ot && g.ot.league || null, block: b.cls === 'po' ? 'playoff' : 'regular', length: b.ot, skaters: b.skaters, shootout: b.so, sudden: b.repeat, ties: OT.tieStandsAfter(b, b.ot ? 4 : 3), text: OT.summary(b) };
+  }
   scoreboard() {
     const s = this.s, g = this.game, c = s.clock, H = g.home, A = g.away;
     const pens = s.penalties.filter((p) => p.active && !p.done && p.strength).map((p) => ({ id: p.id, team: p.team, code: (this.registry.player(p.pid) || {}).code, kind: p.kind, infraction: p.infraction, endEl: p.endEl, startEl: p.startEl }));
     return { key: g.key, home: H, away: A, score: { [H]: s.teams[H].score, [A]: s.teams[A].score }, shootout: { [H]: s.teams[H].soGoals, [A]: s.teams[A].soGoals },
-      period: c.period, periodText: periodText(c.period, g.stage), remainingDs: c.remainingDs, running: c.running, refNs: c.refNs.toString(), periodLength: periodLength(g.stage, c.period),
-      started: !!this.s.started, startRule: g.start === 'frame' ? 'frame' : null,
+      period: c.period, periodText: periodText(c.period, g), remainingDs: c.remainingDs, running: c.running, refNs: c.refNs.toString(), periodLength: periodLength(g, c.period),
+      started: !!this.s.started, startRule: g.start === 'frame' ? 'frame' : null, overtime: this.overtime(),
+      whistleStop: !c.running && !!(s.clockHistory.length && s.clockHistory[s.clockHistory.length - 1].whistle), whistles: s.whistles.length, lastWhistle: s.whistles.length ? `${periodText(s.whistles[s.whistles.length - 1].period, g)} ${clockText(s.whistles[s.whistles.length - 1].remainingDs)}` : null,
       strength: this.strength(s, H), situation: { [H]: this.situation(s, H), [A]: this.situation(s, A) }, penalties: pens, final: s.result, events: s.events.length, ledger: this.ledger.length, version: this.version,
       goalies: { [H]: s.goalie[H] ? (this.registry.player(s.goalie[H]) || {}).code : null, [A]: s.goalie[A] ? (this.registry.player(s.goalie[A]) || {}).code : null },
       onIce: { [H]: [...s.onIce[H]].map((pid) => (this.registry.player(pid) || {}).code), [A]: [...s.onIce[A]].map((pid) => (this.registry.player(pid) || {}).code) } };

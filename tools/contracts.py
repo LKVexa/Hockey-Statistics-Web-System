@@ -39,7 +39,7 @@ ALPHA = {"format": "0.3", "profile": "basic_mssl.executable.3", "record": "MSSL.
 FIELDS = ["α", "ι", "λ", "ℛ", "π", "δ", "τ", "μ", "ρ", "χ", "η", "ν", "κ"]
 QUALIFICATION = "90_qualification.mssl"
 
-JA_FILES = ["rinkvt_frame.ja", "rinkvt_loopback.ja", "rinkvt_store.ja", "rinkvt_host.ja"]
+JA_FILES = ["rinkvt_frame.ja", "rinkvt_overtime.ja", "rinkvt_loopback.ja", "rinkvt_store.ja", "rinkvt_host.ja"]
 COMPONENTS = ["rinkvt.lkvexa.photon_host", "rinkvt.lkvexa.league_store", "rinkvt.lkvexa.loopback_leases",
               "rinkvt.lkvexa.release_integrity", "rinkvt.lkvexa.renderer", "rinkvt.lkvexa.engine"]
 
@@ -128,14 +128,16 @@ def contracts():
             ("evidence", ["tests/test_browser.py", "tests/test_release.py"]),
         ]),
         ("60_engine.mssl", "rinkvt.lkvexa.engine", [
-            ("component", "engine/ (32 modules and 3 data tables: the reference edition's engine 2.5.0-rinkvt.1 with the start frame of this release), ui/loader.js, ui/app.js"),
+            ("component", "engine/ (33 modules and 3 data tables: the reference edition's engine 2.5.0-rinkvt.1 with the start frame, the whistle and the league overtime rules of this release), ui/loader.js, ui/app.js"),
             ("contract", "the command language, frames, game actor, models, roster importer and HK001 run in the renderer as the reference edition runs them; the window sends the host every change a command made and shows the command's result only after the host has it on disk; when the host refuses, the window loads the league again"),
             ("engine_version", ENGINE),
             ("start_frame", "START is the game's start frame, a !CLK frame with the action byte 66 (B): the opening faceoff. In a game created under the start-frame rule, as every game created in this edition is, the clock runs only after it and GO is refused until then; a game created by an earlier build starts with its first GO, so its ledger replays unchanged"),
-            ("ja_contract", "contracts/ja/rinkvt_frame.ja"),
+            ("whistle", "WHISTLE is the whistle, a !CLK frame with the action byte 87 (W): it stops the running clock and play is dead until the faceoff. WHISTLE mm:ss also sets the clock to the time on the official clock when the whistle went; on a clock a whistle already stopped it sets that whistle's time, on a clock STOP stopped it makes the stoppage a whistle. It is refused before the clock has run in the period, in the shootout, and (without a time) on a stopped clock. Esc in the workbench is the whistle while the clock runs; every whistle is counted on the scoreboard"),
+            ("overtime_rules", "a league's overtime rules (rink overtime LEAGUE preset | ot= skaters= shootout= playoff-ot= playoff-skaters= playoff-shootout= | clear) decide a game that is level after regulation: the overtime's length (none, or 1:00 to 20:00), skaters a side (3, 4 or 5), shootout rounds (none, or 1 to 10, then sudden death); a regular block for regular-season and preseason games, a playoff block for playoff and championship games, where no shootout means sudden-death periods up to OT9. Presets: standard, four-on-four, international, overtime-then-tie, shootout-only, ties. Each game keeps a copy of its league's rules from its creation (the home team's league, else the away team's); a game without one keeps the built-in rules, exactly as earlier builds played it. A tie that stands earns a point each"),
+            ("ja_contract", ["contracts/ja/rinkvt_frame.ja", "contracts/ja/rinkvt_overtime.ja"]),
             ("maturity", "OPERATIONAL"),
             ("evidence", ["tests/test_browser.py", "tests/test_store.py"]),
-            ("scope_limit", "the engine's own test suite belongs to the reference edition (Node.js), whose 78 engine tests pass on this engine; this edition exercises the engine through its browser tests"),
+            ("scope_limit", "the engine's own test suite belongs to the reference edition (Node.js), whose 78 engine tests pass on this engine, and whose 128 other tests pass with it; this edition exercises the engine through its browser tests"),
         ]),
     ]
 
@@ -302,6 +304,23 @@ def _engine_clock_byte(action):
     return found.group(1) if found else "(not in the engine)"
 
 
+def _engine_overtime():
+    """The overtime presets and built-in rules of the engine (rink/server/overtime.js), as the JA contract states them."""
+    with open(os.path.join(ROOT, "engine", "rink", "server", "overtime.js"), encoding="utf-8") as f:
+        js = f.read()
+    blk = r"\{ ot: (\d+), skaters: (\d+), so: (\d+) \}"
+    sudden = re.search(r"const SUDDEN_DEATH = " + blk + ";", js)
+    out = []
+    for m in re.finditer(r"^  '?([a-z-]+)'?: \{ reg: " + blk + r", po: (SUDDEN_DEATH|" + blk + "),", js, re.M):
+        po = sudden.groups() if m.group(5) == "SUDDEN_DEATH" else m.group(6, 7, 8)
+        out.append(f"let {m.group(1).replace('-', '_')}: Rules = Rules {{ reg: Block {{ ot: {m.group(2)}, skaters: {m.group(3)}, so: {m.group(4)} }}, "
+                   f"po: Block {{ ot: {po[0]}, skaters: {po[1]}, so: {po[2]} }} }}")
+    for name, stage in (("LEGACY_REG", "Stage.Regular"), ("LEGACY_PO", "_")):
+        m = re.search(name + r" = Object\.freeze\(\{ ot: (\d+), skaters: (\d+), so: (\d+), repeat: (true|false)", js)
+        out.append(f"{stage} => Decider {{ ot: {m.group(1)}, skaters: {m.group(2)}, so: {m.group(3)}, repeat: {m.group(4)} }}" if m else f"{name} (not in the engine)")
+    return out if len(out) >= 8 else out + ["(the engine's presets could not be read)"]
+
+
 def cross_checks():
     """Constants the contracts state, checked against the implementation that keeps them."""
     from host.crc32c import crc32c
@@ -317,6 +336,7 @@ def cross_checks():
         ("rinkvt_frame.ja", 'Crc32c.of(Bytes.text("123456789")) == ' + str(crc32c(b"123456789", 9))),
         ("rinkvt_frame.ja", "meta_magic: Count = " + str(META_MAGIC)),
         ("rinkvt_frame.ja", "clock_start_byte: Count = " + _engine_clock_byte("start")),
+        ("rinkvt_frame.ja", "clock_whistle_byte: Count = " + _engine_clock_byte("whistle")),
         ("rinkvt_loopback.ja", f'base: "{DEFAULT_POOL.split("/")[0]}", prefix_length: {DEFAULT_POOL.split("/")[1]}, capacity: {Pool(DEFAULT_POOL).capacity}'),
         ("rinkvt_loopback.ja", f'first_address(canonical_key("203.0.113.5"), default_pool) == "{LeaseTable().lease("203.0.113.5")[0]}"'),
         ("rinkvt_loopback.ja", f'device_key("4c4c4544003910398053b4c04f584e33") == "{derive("4c4c4544003910398053b4c04f584e33")}"'),
@@ -326,6 +346,7 @@ def cross_checks():
         ("rinkvt_host.ja", f'token_header: Text = "{TOKEN_HEADER}"'),
         ("rinkvt_host.ja", f"max_body_bytes: Count = {MAX_BODY}"),
     ]
+    want += [("rinkvt_overtime.ja", line) for line in _engine_overtime()]
     return [f"{f}: does not state {w!r} (the implementation's value)" for f, w in want if w not in ja[f]]
 
 

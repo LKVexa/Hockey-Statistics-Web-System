@@ -9,6 +9,7 @@
  */
 const XG = require('../shared/xg');
 const hash = require('../shared/hash');
+const OT = require('./overtime');
 
 function rng(seed) { let s = (seed >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
 const NS = 1000000000n;
@@ -41,6 +42,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
     pairs[t] = [0, 1, 2].map((i) => [D[(2 * i) % D.length], D[(2 * i + 1) % D.length]].filter(Boolean));
     goalie[t] = registry.player(game.starters[t]) || byPos(t, 'G')[0];
   }
+  const rules = OT.block(game);                         // the game's overtime rules (its league's, or the built-in ones)
   let wall = startNs; let runFromWall = null, runFromEl = 0, periodLen = 1200, period = 1, elInPeriod = 0;
   const log = { lines: 0, rejected: [], goals: { [H]: 0, [A]: 0 } };
   const out = (line, onset) => {
@@ -53,7 +55,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
   // onset that latches exactly at in-period elapsed e while the clock runs
   const onsetAt = (e) => runFromWall + BigInt(Math.round((e - runFromEl) * 1e9));
   const go = () => { out(game.start === 'frame' && !state().started ? 'START' : 'GO'); runFromWall = wall + 600000000n; runFromEl = elInPeriod; wall = runFromWall + 200000000n; };
-  const stopAt = (e) => { out('STOP', onsetAt(e) - 600000000n); elInPeriod = e; wall = onsetAt(e) + BigInt(Math.round((12 + 25 * r()) * 1e9)); runFromWall = null; };
+  const stopAt = (e) => { out('WHISTLE', onsetAt(e) - 600000000n); elInPeriod = e; wall = onsetAt(e) + BigInt(Math.round((12 + 25 * r()) * 1e9)); runFromWall = null; };
   const at = (e, line) => { if (runFromWall === null) { out(line, wall); wall += 1000000000n; } else out(line, onsetAt(e)); };
   const pick = (arr) => arr[Math.floor(r() * arr.length)];
   const s0 = () => state();
@@ -67,7 +69,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
     li[t]++; if (r() < 0.6) pi[t]++;
     let skaters = [...free(t, fwd), ...free(t, d)];
     const pool = free(t, [...lines[t].flat(), ...pairs[t].flat()]).filter((p) => !skaters.includes(p));
-    const want = (period === 4 && game.stage === 'REGULAR' ? 3 : 5) - Math.min(2, pen[t]) + (extraAttacker ? 1 : 0);
+    const want = (OT.overtimeSkaters(rules, period) || 5) - Math.min(2, pen[t]) + (extraAttacker ? 1 : 0);   // overtime may be played 3 or 4 a side
     while (skaters.length < want && pool.length) skaters.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
     skaters = skaters.slice(0, Math.max(1, want));
     onIce[t] = skaters;
@@ -185,13 +187,14 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
   for (const p of [1, 2, 3]) { playPeriod(p, 1200); if (p < 3) { wall += 1000n * NS; say('NEXT'); } }
   wall += 60n * NS;
   const tied = () => s0().teams[H].score === s0().teams[A].score;
-  if (!tied()) { say('NEXT'); }                                       // decided in regulation: NEXT at the P3 buzzer finalises
+  if (!tied() || OT.tieStandsAfter(rules, 3)) { say('NEXT'); }        // decided in regulation, or a tie stands: NEXT at the P3 buzzer finalises
   else {
-    say('NEXT'); onIce.pulled = null;
-    if (game.stage === 'REGULAR') {
-      const res = playPeriod(4, 300);
-      if (res !== 'decided') {
-        wall += 120n * NS; say('NEXT');                             // into the shootout
+    say('NEXT'); onIce.pulled = null;                                // into overtime, or (no overtime) straight to the shootout
+    if (!rules.repeat) {
+      const res = rules.ot ? playPeriod(4, rules.ot) : 'played';
+      if (res !== 'decided' && !rules.so) { wall += 60n * NS; say('NEXT'); }   // the overtime ends level and a tie stands
+      else if (res !== 'decided') {
+        if (rules.ot) { wall += 120n * NS; say('NEXT'); }           // into the shootout
         const shooters = { [H]: lines[H].flat().slice(0, 6), [A]: lines[A].flat().slice(0, 6) };
         let k = 0; const so = { [H]: 0, [A]: 0 };
         while (k < 20 && !s0().result) {
@@ -205,7 +208,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
         if (!s0().result) say('END');
       }
     } else {
-      for (let ot = 4; ot < 12 && !s0().result; ot++) { const res = playPeriod(ot, 1200); if (res === 'decided') break; say('NEXT'); }
+      for (let ot = 4; ot < 12 && !s0().result; ot++) { const res = playPeriod(ot, rules.ot); if (res === 'decided') break; say('NEXT'); }
     }
   }
   const s = s0();

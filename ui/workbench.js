@@ -1,4 +1,4 @@
-/* RINK-VT 2.5.0-lkvexa.2 · LK/Vexa edition · the renderer bundle, built by tools/bundle.py from engine/ and ui/.
+/* RINK-VT 2.5.0-lkvexa.3 · LK/Vexa edition · the renderer bundle, built by tools/bundle.py from engine/ and ui/.
  * Copyright (C) 2026 RUSSELL PHILIP SMITHSON · SPDX-License-Identifier: GPL-3.0-only · no warranty: see LICENSE.
  * The engine's Go-derived parts keep their notices in engine/rink/hk001/NOTICE.md. */
 /* SPDX-License-Identifier: GPL-3.0-only
@@ -207,7 +207,7 @@ D["rink/shared/hcl.js"]=function(module,exports,require,__dirname,__filename){
  *   tri-token     TEAM_4 PLAYER_4 STAT[/mod[/mod…]]      FOCO SMIT G · FOCO J91 S/1W · KELW BARK P2/TRP · FOCO HALA ZE/C
  *   corrections   UNDO · DEL <seq> · FIX <seq> TEAM_4 PLAYER_4 STAT[/mods] · FIX #<seq> A1=19 A2=44 XY=78,-4 (HCL key=value form)
  *   lineup        LINE TEAM_4 P1 P2 … (up to 6)            replaces the team's on-ice skaters
- *   clock         T mm:ss [P1|P2|P3|OT|SO|OT2…OT9] · GO · STOP · NEXT · END (final) · CLOCK GO|STOP|NEXT|END|SET mm:ss [Pn]
+ *   clock         T mm:ss [P1|P2|P3|OT|SO|OT2…OT9] · START · GO · WHISTLE [mm:ss] · STOP · NEXT · END (final) · CLOCK GO|STOP|NEXT|END|WHISTLE [mm:ss]|SET mm:ss [Pn]
  *   queries       Q <TARGET> [args] [--key=value]          Q BOX · Q XG · Q RAPM --str=5v5 · Q HK001 FOCO
  *   session       GAME <key> · LOCALE en-CA|fr-CA · HELP · EXIT
  * STAT tokens are the spec's (G S M B A A1 A2 ZE ZX H TK GV FOW FOL P2 P4 P5 P10 P20 PS IN OUT) plus two
@@ -339,6 +339,13 @@ D["rink/shared/hcl.js"]=function(module,exports,require,__dirname,__filename){
     if (!raw) return { kind: 'empty' };
     if (raw.length > 200) return err('line longer than 200 characters');
     const t = raw.split(/\s+/); const U = t.map((x) => x.toUpperCase());
+    // WHISTLE [mm:ss]: the whistle stops the clock; the time, if given, is what the official clock showed then
+    const whistle = (i) => {
+      if (t.length > i + 1) return err('usage: WHISTLE [mm:ss]   (the time on the official clock when the whistle went)', i + 1);
+      if (!t[i]) return { kind: 'clock', action: 'whistle', remainingDs: null, raw };
+      const ds = parseClock(t[i]); if (ds === null) return err('WHISTLE takes the clock time as mm:ss (00:00 to 20:00)', i);
+      return { kind: 'clock', action: 'whistle', remainingDs: ds, raw };
+    };
     switch (U[0]) {
       case 'UNDO': return t.length === 1 ? { kind: 'undo', raw } : err('UNDO takes no argument');
       case 'DEL': { const s = /^#?(\d{1,9})$/.exec(t[1] || ''); return s && t.length === 2 ? { kind: 'del', seq: Number(s[1]), raw } : err('usage: DEL <event seq>'); }
@@ -380,11 +387,13 @@ D["rink/shared/hcl.js"]=function(module,exports,require,__dirname,__filename){
         return { kind: 'clock', action: 'set', remainingDs: ds, period, raw };
       }
       case 'START': case 'GO': case 'STOP': case 'NEXT': case 'END': return t.length === 1 ? { kind: 'clock', action: U[0].toLowerCase(), raw } : err(`${U[0]} takes no argument`);
+      case 'WHISTLE': return whistle(1);
       case 'CLOCK': {
         const a = U[1];
         if (a === 'START' || a === 'GO' || a === 'STOP' || a === 'NEXT' || a === 'END') return { kind: 'clock', action: a.toLowerCase(), raw };
+        if (a === 'WHISTLE') return whistle(2);
         if (a === 'SET') { const ds = parseClock(t[2]); if (ds === null) return err('usage: CLOCK SET mm:ss [Pn]', 2); const period = t[3] && Object.prototype.hasOwnProperty.call(PERIODS, U[3]) ? PERIODS[U[3]] : null; if (t[3] && !period) return err('bad period', 3); return { kind: 'clock', action: 'set', remainingDs: ds, period, raw }; }
-        return err('usage: CLOCK GO | STOP | NEXT | END | SET mm:ss [Pn]');
+        return err('usage: CLOCK GO | STOP | WHISTLE [mm:ss] | NEXT | END | SET mm:ss [Pn]');
       }
       case 'Q': {
         if (!t[1]) return err('usage: Q <TARGET> [args] [--key=value]  (Q HELP lists targets)');
@@ -448,7 +457,8 @@ D["rink/shared/wire.js"]=function(module,exports,require,__dirname,__filename){
  * System frames put "!" + a 3-letter opcode in 40..43 and a 16-byte payload in 44..59:
  *   !UND undo · !DEL seq · !FXP seq team player · !FXS seq stat mod · !FXC seq x y · !FXA seq slot player
  *   !LIN team p1 p2 p3 (replace on-ice set) · !LIA team p1 p2 p3 (add) · !CLK action period remaining_ds
- *   (clock actions, byte 44: S set · B start, the game's start frame · G go · H stop · N next · E end)
+ *   (clock actions, byte 44: S set · B start, the game's start frame · G go · H stop · W whistle, which may carry the
+ *   time on the official clock when it went · N next · E end)
  * decode() is strict: every text field must be canonical (A-Z, 0-9, NUL-padded, nothing after the first NUL) and
  * every number in range. A frame that is not gets `bad` (the reason) and placeholder text, so bytes chosen by a
  * client never reach a terminal, a log line or the audit trail; the game actor rejects it.
@@ -553,7 +563,7 @@ D["rink/shared/wire.js"]=function(module,exports,require,__dirname,__filename){
         }
         break;
       }
-      case 'clock': sys('CLK', (u8, dv) => { u8[44] = { set: 83, start: 66, go: 71, stop: 72, next: 78, end: 69 }[ast.action]; u8[45] = ast.period || 0; dv.setUint32(46, ast.remainingDs === null || ast.remainingDs === undefined ? 0xffffffff : ast.remainingDs); }); break;
+      case 'clock': sys('CLK', (u8, dv) => { u8[44] = { set: 83, start: 66, go: 71, stop: 72, whistle: 87, next: 78, end: 69 }[ast.action]; u8[45] = ast.period || 0; dv.setUint32(46, ast.remainingDs === null || ast.remainingDs === undefined ? 0xffffffff : ast.remainingDs); }); break;
       default: throw new Error(`${ast.kind} is not a state-changing command`);
     }
     return frames;
@@ -579,14 +589,15 @@ D["rink/shared/wire.js"]=function(module,exports,require,__dirname,__filename){
         case 'FXA': needSeq(); f.slot = u8[48]; f.player = text(f, u8, 52, 4, RE_OPT, 'player'); if (f.slot !== 1 && f.slot !== 2 && !f.bad) f.bad = 'an assist slot is 1 or 2'; break;
         case 'LIN': case 'LIA': f.team = text(f, u8, 44, 4, RE_TEAM, 'team'); f.players = [0, 1, 2].map((k) => text(f, u8, 48 + 4 * k, 4, RE_OPT, 'player')).filter(Boolean); if (!f.players.length && !f.bad) f.bad = 'a LINE names at least one player'; break;
         case 'CLK': {
-          f.action = { 83: 'set', 66: 'start', 71: 'go', 72: 'stop', 78: 'next', 69: 'end' }[u8[44]] || '?'; f.period = u8[45] || null;
+          f.action = { 83: 'set', 66: 'start', 71: 'go', 72: 'stop', 87: 'whistle', 78: 'next', 69: 'end' }[u8[44]] || '?'; f.period = u8[45] || null;
           const r = dv.getUint32(46); f.remainingDs = r === 0xffffffff ? null : r;
           if (!f.bad) {
             if (f.action === '?') f.bad = 'unknown clock action';
             else if (f.period !== null && f.period > MAX_PERIOD) f.bad = 'no such period';
             else if (f.remainingDs !== null && f.remainingDs > MAX_DS) f.bad = 'the clock goes from 20:00 to 0:00';
             else if (f.action === 'set' && f.remainingDs === null) f.bad = 'T needs a clock time';
-            else if (f.action !== 'set' && (f.period !== null || f.remainingDs !== null)) f.bad = 'only T carries a period or a time';
+            else if (f.action === 'whistle' && f.period !== null) f.bad = 'WHISTLE carries a time, never a period';
+            else if (f.action !== 'set' && f.action !== 'whistle' && (f.period !== null || f.remainingDs !== null)) f.bad = 'only T carries a period, and only T and WHISTLE a time';
           }
           break;
         }
@@ -762,7 +773,7 @@ D["rink/shared/assist.js"]=function(module,exports,require,__dirname,__filename)
   else root.RinkAssist = factory(root.RinkHcl);
 })(typeof self !== 'undefined' ? self : this, function (hcl) {
   'use strict';
-  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'START', 'GO', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
+  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'START', 'GO', 'WHISTLE', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
   const Q_TARGETS = ['SCORE', 'BOX', 'EVENTS', 'XG', 'STINTS', 'PEN', 'PLAYER', 'STANDINGS', 'LEADERS', 'RAPM', 'GSAX', 'GAR', 'WAR', 'NHLE', 'HEAT', 'LEDGER', 'AUDIT', 'ROSTER', 'CODES', 'HK001'];
   const STATS = Object.keys(hcl.STATS);
   const MODS = {
@@ -813,9 +824,9 @@ D["rink/shared/assist.js"]=function(module,exports,require,__dirname,__filename)
         for (let k = 2; k < parts.length - (endsSpace ? 0 : 1); k++) if (!playerOk(team, parts[k])) return out('error', [], '', `${parts[k]}: not on the ${team} roster`);
         return out(parts.length >= 3 && full.kind === 'line' ? 'ok' : 'incomplete', roster(team).map((p) => p.code).filter((c) => !parts.slice(2).map((x) => x.toUpperCase()).includes(c)), 'PLAYER_4');
       }
-      if (['DEL', 'FIX', 'T', 'GAME', 'LOCALE'].includes(w0)) {
+      if (['DEL', 'FIX', 'T', 'WHISTLE', 'GAME', 'LOCALE'].includes(w0)) {
         if (full.kind !== 'error') return out('ok', [], '');
-        if (idx === 1) return out('incomplete', w0 === 'T' ? ['20:00', '5:00'] : w0 === 'LOCALE' ? ['en-CA', 'fr-CA'] : [], w0 === 'T' ? 'mm:ss' : w0 === 'GAME' ? '<key>' : '<seq>', full.message);
+        if (idx === 1) return out('incomplete', w0 === 'T' ? ['20:00', '5:00'] : w0 === 'LOCALE' ? ['en-CA', 'fr-CA'] : [], w0 === 'T' || w0 === 'WHISTLE' ? 'mm:ss' : w0 === 'GAME' ? '<key>' : '<seq>', full.message);
         return { state: 'incomplete', ghost: '', candidates: [], hint: '', message: full.message, ast: full };
       }
       // tri-token TEAM PLAYER STAT[/mods]
@@ -923,6 +934,145 @@ D["rink/shared/hash.js"]=function(module,exports,require,__dirname,__filename){
 });
 
 };
+D["rink/server/overtime.js"]=function(module,exports,require,__dirname,__filename){
+'use strict';
+/**
+ * Overtime rules: how a game is decided when regulation ends tied — set per league (rink overtime).
+ *
+ * A rule set has two blocks: `reg` for regular-season and preseason games, `po` for playoff and championship games.
+ *   ot       the overtime period's length in seconds: 0 (no overtime) or 60–1200
+ *   skaters  skaters a side in overtime: 3, 4 or 5 (each penalty gives the other side one more, up to 5)
+ *   so       shootout rounds after the overtime: 0 (no shootout), or 1–10, then sudden death
+ * Periods: P1–P3 are regulation (20:00); period 4 is the overtime; period 5 is the shootout when there is one. A
+ * regular block without a shootout lets a tie stand once its overtime (if any) ends. A playoff block without a
+ * shootout repeats sudden-death overtime periods of its length until a goal, up to period 12 (OT1 … OT9).
+ *
+ * A league's rules are copied into each game created for its teams (game.ot, from the home team's league), so a game
+ * is always decided by the rules it was created under, whatever the league changes later. A game without them — in
+ * no league with rules, or created by an earlier build — keeps the built-in rules exactly: a regular-season game the
+ * "standard" preset, any other game 20:00 5-on-5 sudden-death periods.
+ */
+const { MAX_PERIOD } = require('../shared/hcl');
+const PLAYOFF_STAGES = new Set(['PLAYOFF', 'CHAMPIONSHIP']);
+const SUDDEN_DEATH = { ot: 1200, skaters: 5, so: 0 };
+
+const PRESETS = {
+  standard: { reg: { ot: 300, skaters: 3, so: 3 }, po: SUDDEN_DEATH,
+    text: 'regular season: 5:00 3-on-3 overtime, then a shootout of 3 rounds · playoffs: 20:00 5-on-5 sudden-death periods' },
+  'four-on-four': { reg: { ot: 300, skaters: 4, so: 3 }, po: SUDDEN_DEATH,
+    text: 'regular season: 5:00 4-on-4 overtime, then a shootout of 3 rounds · playoffs: 20:00 5-on-5 sudden-death periods' },
+  international: { reg: { ot: 300, skaters: 3, so: 5 }, po: { ot: 600, skaters: 3, so: 5 },
+    text: 'regular season: 5:00 3-on-3 overtime, then a shootout of 5 rounds · playoffs: 10:00 3-on-3 overtime, then a shootout of 5 rounds' },
+  'overtime-then-tie': { reg: { ot: 300, skaters: 3, so: 0 }, po: SUDDEN_DEATH,
+    text: 'regular season: 5:00 3-on-3 overtime, and a tie stands · playoffs: 20:00 5-on-5 sudden-death periods' },
+  'shootout-only': { reg: { ot: 0, skaters: 3, so: 3 }, po: SUDDEN_DEATH,
+    text: 'regular season: no overtime, a shootout of 3 rounds · playoffs: 20:00 5-on-5 sudden-death periods' },
+  ties: { reg: { ot: 0, skaters: 3, so: 0 }, po: SUDDEN_DEATH,
+    text: 'regular season: no overtime, and a tie stands · playoffs: 20:00 5-on-5 sudden-death periods' },
+};
+
+function fail(msg) { throw Object.assign(new Error(msg), { code: 'BAD_REQUEST' }); }
+
+function checkBlock(b, which) {
+  if (!b || typeof b !== 'object') fail(`overtime rules: the ${which} block is missing`);
+  const ot = b.ot, sk = b.skaters, so = b.so;
+  if (!Number.isInteger(ot) || !(ot === 0 || (ot >= 60 && ot <= 1200))) fail(`overtime rules: ${which} overtime is 0 (none) or 1:00 to 20:00`);
+  if (![3, 4, 5].includes(sk)) fail(`overtime rules: ${which} overtime is played 3, 4 or 5 skaters a side`);
+  if (!Number.isInteger(so) || so < 0 || so > 10) fail(`overtime rules: ${which} shootout rounds are 0 (none) to 10`);
+  if (which === 'playoff' && ot === 0) fail('overtime rules: a playoff game needs an overtime (1:00 to 20:00) to be decided');
+  return { ot, skaters: sk, so };
+}
+
+/** A validated rule set {reg, po} (plain numbers; anything else is refused). */
+function normalize(r) {
+  if (!r || typeof r !== 'object') fail('overtime rules must be an object with reg and po');
+  return { reg: checkBlock(r.reg, 'regular-season'), po: checkBlock(r.po, 'playoff') };
+}
+
+const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function seconds(v, key) {
+  const m = /^(\d{1,2}):([0-5]\d)$/.exec(v) || /^(\d{1,4})$/.exec(v);
+  if (!m) fail(`${key}= takes a time such as 5:00 (or seconds)`);
+  return m[2] !== undefined ? Number(m[1]) * 60 + Number(m[2]) : Number(m[1]);
+}
+const KEYS = { ot: ['reg', 'ot'], skaters: ['reg', 'skaters'], shootout: ['reg', 'so'], 'playoff-ot': ['po', 'ot'], 'playoff-skaters': ['po', 'skaters'], 'playoff-shootout': ['po', 'so'] };
+
+/** Rules from a preset name and/or key=value settings, applied over `base`. */
+function apply(base, words) {
+  let r = JSON.parse(JSON.stringify(normalize(base || PRESETS.standard)));
+  for (const w of words || []) {
+    const word = String(w);
+    if (Object.prototype.hasOwnProperty.call(PRESETS, word.toLowerCase())) { const p = PRESETS[word.toLowerCase()]; r = { reg: Object.assign({}, p.reg), po: Object.assign({}, p.po) }; continue; }
+    const m = /^([a-z-]+)=(\S+)$/i.exec(word);
+    if (!m || !KEYS[m[1].toLowerCase()]) fail(`overtime: ${word.slice(0, 30)} is neither a preset (${Object.keys(PRESETS).join(', ')}) nor a setting (${Object.keys(KEYS).map((k) => k + '=').join(' ')})`);
+    const [blk, field] = KEYS[m[1].toLowerCase()];
+    r[blk][field] = field === 'ot' ? seconds(m[2], m[1]) : (/^\d{1,2}$/.test(m[2]) ? Number(m[2]) : fail(`${m[1]}= takes a whole number`));
+  }
+  return normalize(r);
+}
+
+function describeBlock(b, playoff) {
+  const ot = b.ot ? `${mmss(b.ot)} ${b.skaters}-on-${b.skaters} ${playoff && !b.so ? 'sudden-death periods' : 'overtime'}` : 'no overtime';
+  const end = b.so ? `then a shootout of ${b.so} round${b.so === 1 ? '' : 's'}` : playoff ? '' : 'and a tie stands';
+  return [ot, end].filter(Boolean).join(', ');
+}
+function describe(r) {
+  const n = normalize(r);
+  const name = Object.keys(PRESETS).find((k) => JSON.stringify({ reg: PRESETS[k].reg, po: PRESETS[k].po }) === JSON.stringify(n));
+  return `regular season: ${describeBlock(n.reg, false)} · playoffs: ${describeBlock(n.po, true)}${name ? `  (preset ${name})` : ''}`;
+}
+
+/* ---- the rules a game is decided by ---- */
+const LEGACY_REG = Object.freeze({ ot: 300, skaters: 3, so: 3, repeat: false, cls: 'reg' });
+const LEGACY_PO = Object.freeze({ ot: 1200, skaters: 5, so: 0, repeat: true, cls: 'po' });
+const memo = new WeakMap();
+/** The block that decides this game (a game object; a stage string gives the built-in rules of that stage). */
+function block(game) {
+  if (typeof game === 'string') return game === 'REGULAR' ? LEGACY_REG : LEGACY_PO;
+  if (!game || typeof game !== 'object') return LEGACY_PO;
+  if (game.cls) return game;                          // already a block
+  let b = memo.get(game);
+  if (b) return b;
+  if (!game.ot) b = game.stage === 'REGULAR' ? LEGACY_REG : LEGACY_PO;
+  else {
+    const r = normalize(game.ot); const cls = PLAYOFF_STAGES.has(game.stage) ? 'po' : 'reg';
+    b = Object.freeze(Object.assign({}, r[cls], { cls, repeat: cls === 'po' && r[cls].so === 0 }));
+  }
+  memo.set(game, b);
+  return b;
+}
+const isShootout = (b, p) => b.so > 0 && p === 5;
+const periodLength = (b, p) => (p <= 3 ? 1200 : p === 4 ? b.ot : isShootout(b, p) ? 0 : b.repeat ? b.ot : 0);
+const maxPeriod = (b) => (b.so > 0 ? 5 : b.repeat ? MAX_PERIOD : b.ot > 0 ? 4 : 3);
+/** a period this game can be in: no period 4 when there is no overtime */
+const validPeriod = (b, p) => Number.isInteger(p) && p >= 1 && p <= maxPeriod(b) && !(p === 4 && b.ot === 0);
+const periodText = (b, p) => (p <= 3 ? 'P' + p : isShootout(b, p) ? 'SO' : b.repeat || p > 4 ? 'OT' + (p - 3) : 'OT');
+/** the period NEXT moves to: straight from P3 to the shootout when there is no overtime */
+const nextPeriod = (b, p) => (p === 3 && b.ot === 0 && b.so > 0 ? 5 : p + 1);
+/** a tie stands when this period ends level: no shootout, no further overtime */
+const tieStandsAfter = (b, p) => !b.repeat && b.so === 0 && p >= (b.ot > 0 ? 4 : 3);
+/** skaters a side in overtime when fewer than five (0 = the ordinary count) */
+const overtimeSkaters = (b, p) => (p >= 4 && !isShootout(b, p) && b.skaters < 5 ? b.skaters : 0);
+/**
+ * Skaters a side in a short-handed overtime (K a side, K < 5): a penalty takes a skater from the penalized side down
+ * to three, then gives the other side one more, up to five; counted on the net penalties (`mine`, `theirs` active).
+ * K = 3 is the 3-on-3 rule exactly (4 on 3, then 5 on 3); K = 4 gives 4 on 3, then 5 on 3.
+ */
+function shortSkaters(K, mine, theirs) {
+  const net = mine - theirs;
+  if (net > 0) return Math.max(3, K - net);
+  return Math.min(5, K + Math.max(0, -net - (K - 3)));
+}
+/** One line for the scoreboard and the game list: what decides this game if regulation ends tied. */
+function summary(b) {
+  if (b.repeat) return `${mmss(b.ot)} ${b.skaters}-on-${b.skaters} sudden-death periods`;
+  const ot = b.ot ? `${mmss(b.ot)} ${b.skaters}-on-${b.skaters} OT` : 'no OT';
+  return `${ot}, ${b.so ? `shootout ${b.so}` : 'tie stands'}`;
+}
+
+module.exports = { PRESETS, KEYS, normalize, apply, describe, block, isShootout, periodLength, maxPeriod, validPeriod, periodText, nextPeriod, tieStandsAfter, overtimeSkaters, shortSkaters, summary, mmss };
+
+};
 D["rink/server/registry.js"]=function(module,exports,require,__dirname,__filename){
 'use strict';
 /**
@@ -945,6 +1095,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const hash = require('../shared/hash');
 const codes = require('../shared/codes');
+const OT = require('./overtime');
 
 const POS = new Set(['C', 'LW', 'RW', 'D', 'G']);
 const STAGES = new Set(['PRESEASON', 'REGULAR', 'PLAYOFF', 'CHAMPIONSHIP']);
@@ -1027,6 +1178,9 @@ class Registry {
     for (const k of ['teams', 'players', 'games', 'notes']) if (!Array.isArray(data[k])) throw new Error(`registry.json: "${k}" must be a list`);
     if (data.leagues === undefined) data.leagues = [];                 // a registry written before 2.3 has no leagues
     if (!Array.isArray(data.leagues)) throw new Error('registry.json: "leagues" must be a list');
+    // overtime rules (2.5.0-lkvexa.3): a league's, and the copy each game keeps, must be rules this build can play
+    for (const l of data.leagues) if (l && l.overtime !== undefined) { try { OT.normalize(l.overtime); } catch (e) { throw new Error(`registry.json: league ${String(l.code).replace(CTRL, '').slice(0, 8)}: ${e.message}`); } }
+    for (const g of data.games) if (g && g.ot !== undefined) { try { OT.normalize(g.ot); } catch (e) { throw new Error(`registry.json: game ${String(g.key).replace(CTRL, '').slice(0, 24)}: ${e.message}`); } }
     if (!data.seq || typeof data.seq !== 'object') data.seq = {};
     data.seq.game = Math.max(Number(data.seq.game) || 0, data.games.length); data.seq.note = Math.max(Number(data.seq.note) || 0, ...data.notes.map((n) => Number(n.id) || 0), 0);
     this.data = data; this._index(); return this;
@@ -1096,6 +1250,25 @@ class Registry {
     return changed;
   }
   league(code) { return typeof code === 'string' ? this.leaguesBy.get(code.toUpperCase()) || null : null; }
+  /**
+   * Set a league's overtime rules (a rule set, overtime.js), or clear them (null): its games then use the built-in
+   * rules. Only games created afterwards follow the change; each game keeps the rules it was created under.
+   * Returns whether anything changed.
+   */
+  setOvertime(code, rules) {
+    const l = this.league(code); if (!l) throw new Error('unknown league');
+    const next = rules === null ? undefined : OT.normalize(rules);
+    if (JSON.stringify(next) === JSON.stringify(l.overtime)) return false;
+    this._was(l, 'overtime');
+    if (next === undefined) delete l.overtime; else l.overtime = next;
+    this._commit(); return true;
+  }
+  /** The league whose overtime rules decide a game between these teams: the home team's, else the away team's. */
+  overtimeLeague(home, away) {
+    const ht = this.teamsBy.get(home), at = this.teamsBy.get(away);
+    const code = ht && ht.league ? ht.league : at && at.league ? at.league : null;
+    return code ? this.leaguesBy.get(code) || null : null;
+  }
   leagues() { return this.data.leagues.slice(); }
   /* ---------- teams ---------- */
   _teamFields(o) {
@@ -1227,6 +1400,10 @@ class Registry {
     }
     const game = { key, uuid, idHash, home, away, date, stage, season, starters: st, createdAt: new Date().toISOString() };
     if (start === 'frame') game.start = 'frame';           // the clock runs only after the game's start frame (START)
+    // the league's overtime rules, copied: the game is decided by the rules it was created under, whatever the
+    // league changes later (a game without them keeps the built-in rules)
+    const lg = this.overtimeLeague(home, away);
+    if (lg && lg.overtime) game.ot = Object.assign({ league: lg.code }, JSON.parse(JSON.stringify(OT.normalize(lg.overtime))));
     this.data.games.push(game); this._index(); this.save(); return game;
   }
   game(key) { return typeof key === 'string' ? this.gamesBy.get(key) || null : null; }
@@ -1328,8 +1505,9 @@ D["rink/server/actor.js"]=function(module,exports,require,__dirname,__filename){
  * discounting, goalie attribution, plus/minus.
  * Declared rules (documented in docs/RINK-VT.md): rebound ≤ 3.0 s, rush ≤ 4.0 s after a transition event,
  * assist window 15 s of operator time (held open until the next primary event), PP-expiry flag 15 s.
- * REGULAR games play a 5-minute overtime and then a shootout; every other stage plays 20-minute sudden-death
- * overtime periods.
+ * Overtime follows the game's own rules (overtime.js): a league sets them (rink overtime) and each game created for
+ * its teams keeps a copy. A game without them keeps the built-in rules — a REGULAR game plays a 5-minute 3-on-3
+ * overtime and then a shootout of 3 rounds; every other stage plays 20-minute sudden-death overtime periods.
  *
  * Trust boundary: a frame is client-supplied bytes. The actor accepts only what the lexer could have produced
  * (wire.decode is strict; STAT and MODIFIER are checked against the HCL grammar; clock, period, coordinates and
@@ -1340,25 +1518,28 @@ const wire = require('../shared/wire');
 const hcl = require('../shared/hcl');
 const XG = require('../shared/xg');
 const hash = require('../shared/hash');
+const OT = require('./overtime');
 
 const P_LEN = 1200;                                  // regulation period, seconds
 const REB_S = 3.0, RUSH_S = 4.0, ASSIST_NS = 15n * 1000000000n, PPX_S = 15;
 const DS_NS = 100000000n;                            // one decisecond in ns (10 Hz scoreboard)
 
-const periodLength = (stage, p) => (p >= 5 && stage === 'REGULAR' ? 0 : p === 4 && stage === 'REGULAR' ? 300 : P_LEN);
-const maxPeriod = (stage) => (stage === 'REGULAR' ? 5 : hcl.MAX_PERIOD);
+/* The period helpers take a game (its overtime rules) or a stage name (the built-in rules of that stage). */
+const periodLength = (game, p) => OT.periodLength(OT.block(game), p);
+const maxPeriod = (game) => OT.maxPeriod(OT.block(game));
 const DEFAULT_MAX_FRAMES = 20000;                    // accepted frames per game (a real game is 1 000 – 2 000)
 const CORRECTIONS = new Set(['UND', 'DEL', 'FXP', 'FXS', 'FXC', 'FXA']);
 /* "5v4" and friends: one shared string per manpower pair (skaters() stays within 0..7) */
 const STRENGTH = Array.from({ length: 9 }, (_, a) => Array.from({ length: 9 }, (__, b) => `${a}v${b}`));
 /** a rejection that changed nothing in the fold state (no re-fold needed) */
 const pure = (error) => ({ status: 'REJECTED', error, pure: true });
-function elapsedOf(stage, period, remainingDs) {
-  let e = 0; for (let p = 1; p < period; p++) e += periodLength(stage, p);
-  return Math.round((e + (periodLength(stage, period) - remainingDs / 10)) * 10) / 10;
+function elapsedOf(game, period, remainingDs) {
+  const b = OT.block(game);
+  let e = 0; for (let p = 1; p < period; p++) e += OT.periodLength(b, p);
+  return Math.round((e + (OT.periodLength(b, period) - remainingDs / 10)) * 10) / 10;
 }
 const clockText = (ds) => `${Math.floor(ds / 600)}:${String(Math.floor(ds / 10) % 60).padStart(2, '0')}${ds % 10 ? '.' + (ds % 10) : ''}`;
-const periodText = (p, stage) => (p <= 3 ? 'P' + p : p === 4 && stage === 'REGULAR' ? 'OT' : p === 5 && stage === 'REGULAR' ? 'SO' : 'OT' + (p - 3));
+const periodText = (p, game) => OT.periodText(OT.block(game), p);
 
 function freshState(game) {
   const H = game.home, A = game.away;
@@ -1367,6 +1548,7 @@ function freshState(game) {
     game, version: 0,
     clock: { period: 1, remainingDs: P_LEN * 10, running: false, refNs: 0n, final: false },
     started: null,                                    // the start frame: { atNs, period, remainingDs }; null before the game starts
+    whistles: [],                                     // every whistle (WHISTLE): { period, remainingDs } in game order
     clockHistory: [],                                 // [{ atNs, period, remainingDs, running }]
     teams: { [H]: team(), [A]: team() },
     onIce: { [H]: new Set(), [A]: new Set() }, goalie: { [H]: game.starters && game.starters[H] || null, [A]: game.starters && game.starters[A] || null },
@@ -1439,7 +1621,7 @@ class GameActor {
   /** A frame that was already applied: say so, with enough of the original outcome to show the operator. */
   _duplicate(entry) {
     const out = { status: 'DUPLICATE', original: entry.status, text: wire.describe(entry.f) };
-    if (entry.seq !== undefined) { out.event_seq = entry.seq; const ev = this.s.bySeq.get(entry.seq); if (ev) out.latched_clock = `${periodText(ev.period, this.game.stage)} ${clockText(ev.clockDs)}`; }
+    if (entry.seq !== undefined) { out.event_seq = entry.seq; const ev = this.s.bySeq.get(entry.seq); if (ev) out.latched_clock = `${periodText(ev.period, this.game)} ${clockText(ev.clockDs)}`; }
     return out;
   }
   /**
@@ -1589,60 +1771,100 @@ class GameActor {
     // stays ordered, and a late STOP cannot rewind the scoreboard under events that were scored meanwhile.
     const h = s.clockHistory; const last = h.length ? h[h.length - 1] : null;
     let at = entry.f.commitNs; if (at < s.lastNs) at = s.lastNs; if (last && at < last.atNs) at = last.atNs;
-    const now = this._clockAt(s, at); const c = s.clock; const stage = this.game.stage;
-    if (!['set', 'start', 'go', 'stop', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
+    const now = this._clockAt(s, at); const c = s.clock; const g = this.game; const b = OT.block(g);
+    if (!['set', 'start', 'go', 'stop', 'whistle', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
     if (s.result && f.action !== 'set') return pure('the game is final');
     let period = now.period, rem = now.remainingDs, running = last ? last.running : false;
     if (f.action === 'set') {
       if (f.remainingDs === null || f.remainingDs === undefined) return pure('T needs a clock time');
-      if (f.period && f.period > maxPeriod(stage)) return pure(stage === 'REGULAR' ? 'a regular-season game ends with the shootout (SO); there is no later period' : `no period ${f.period}`);
+      if (f.period && f.period > OT.maxPeriod(b)) return pure(this._noLaterPeriod(b, f.period));
+      if (f.period && !OT.validPeriod(b, f.period)) return pure(`this game plays no overtime period (${OT.summary(b)}); a tie after P3 goes ${b.so ? 'to the shootout (SO)' : 'into the books'}`);
     }
-    if (f.action === 'next' && !this._decidedAtPeriodEnd(s, period) && period + 1 > maxPeriod(stage)) return pure(stage === 'REGULAR' ? 'the shootout decides the game; type the attempts, or END' : 'no further overtime period; use END');
+    if (f.action === 'next' && !this._decidedAtPeriodEnd(s, period) && OT.nextPeriod(b, period) > OT.maxPeriod(b)) return pure(OT.isShootout(b, period) ? 'the shootout decides the game; type the attempts, or END' : 'no further overtime period; use END');
     if (f.action === 'end' || (f.action === 'next' && this._decidedAtPeriodEnd(s, period))) {
-      this._advance(s, elapsedOf(stage, period, f.action === 'end' ? rem : 0));
-      this._closeStint(s, elapsedOf(stage, period, f.action === 'end' ? rem : 0));
-      h.push({ atNs: at, period, remainingDs: f.action === 'end' ? rem : 0, running: false });
-      Object.assign(c, { period, remainingDs: f.action === 'end' ? rem : 0, running: false, refNs: at });
-      this._finalize(s, period <= 3 ? 'REG' : stage === 'REGULAR' && period === 5 ? 'SO' : 'OT');
+      const endRem = f.action === 'end' ? rem : 0;
+      this._advance(s, elapsedOf(g, period, endRem));
+      this._closeStint(s, elapsedOf(g, period, endRem));
+      h.push({ atNs: at, period, remainingDs: endRem, running: false });
+      Object.assign(c, { period, remainingDs: endRem, running: false, refNs: at });
+      this._finalize(s, period <= 3 ? 'REG' : OT.isShootout(b, period) ? 'SO' : 'OT');
       return { status: 'APPLIED', clock: 'FINAL', result: s.result };
     }
     // The start frame (START) is the opening faceoff: the clock never runs before it. In a game created under the
     // start-frame rule (game.start === 'frame') GO is refused until START; in a game of an earlier build the first GO
     // starts the game, as it always did, so its ledger replays unchanged.
     if (f.action === 'start') {
-      if (s.started) return pure(`the game started at ${periodText(s.started.period, stage)} ${clockText(s.started.remainingDs)}; GO restarts the clock after a stoppage`);
+      if (s.started) return pure(`the game started at ${periodText(s.started.period, g)} ${clockText(s.started.remainingDs)}; GO restarts the clock after a stoppage`);
       if (rem <= 0) return pure('the period clock is at 0:00; use T mm:ss first');
       running = true;
-    } else if (f.action === 'go' && !s.started && this.game.start === 'frame') return pure('the game has not started: type START at the opening faceoff');
+    } else if (f.action === 'go' && !s.started && g.start === 'frame') return pure('the game has not started: type START at the opening faceoff');
+    // WHISTLE is the whistle: the clock stops and play is dead until the faceoff. With a time (WHISTLE 12:34, what
+    // the official clock showed when the whistle went) the clock also reads that time, so the moments between the
+    // whistle and the keystroke are taken back. On a clock a whistle already stopped, WHISTLE mm:ss sets that
+    // whistle's time; on a clock STOP stopped, it makes the stoppage a whistle.
+    let whistle = null;
+    if (f.action === 'whistle') {
+      const timed = f.remainingDs !== null && f.remainingDs !== undefined;
+      if (OT.isShootout(b, period)) return pure('the shootout has no clock to stop');
+      if (!this._ranIn(h, period)) return pure(!s.started ? 'the game has not started: there is no play for a whistle to stop' : `the clock has not run in ${periodText(period, g)}: there is no play for a whistle to stop`);
+      if (!running && !timed) return pure(`the clock is already stopped at ${periodText(period, g)} ${clockText(rem)}; GO restarts it · WHISTLE mm:ss sets the time the whistle went`);
+      if (timed) {
+        const len = OT.periodLength(b, period) * 10;
+        if (f.remainingDs > len) return pure(`${periodText(period, g)} is ${clockText(len)} long; WHISTLE takes the time on the official clock`);
+        rem = f.remainingDs;
+      }
+      whistle = { amend: !running && !!(last && last.whistle) };
+      running = false; s.stoppage = true;
+    }
     if (f.action === 'go') { if (rem <= 0) return pure('the period clock is at 0:00; use NEXT or T mm:ss'); running = true; }
     else if (f.action === 'stop') { running = false; s.stoppage = true; }
-    else if (f.action === 'set') { rem = f.remainingDs; if (f.period) period = f.period; if (rem > periodLength(stage, period) * 10) rem = periodLength(stage, period) * 10; }
-    else if (f.action === 'next') { period = period + 1; rem = periodLength(stage, period) * 10; running = false; }
+    else if (f.action === 'set') { rem = f.remainingDs; if (f.period) period = f.period; const len = OT.periodLength(b, period) * 10; if (rem > len) rem = len; }
+    else if (f.action === 'next') { period = OT.nextPeriod(b, period); rem = OT.periodLength(b, period) * 10; running = false; }
     const changedPeriod = period !== c.period;
-    const el = elapsedOf(stage, period, rem);
+    const el = elapsedOf(g, period, rem);
     if (changedPeriod) {
-      this._advance(s, elapsedOf(stage, c.period, Math.min(c.remainingDs, now.remainingDs)));
-      if (period === 5 && stage === 'REGULAR') this._closeStint(s, s.lastEl);
+      this._advance(s, elapsedOf(g, c.period, Math.min(c.remainingDs, now.remainingDs)));
+      if (OT.isShootout(b, period)) this._closeStint(s, s.lastEl);
       s.pendingZone = 'NEU'; s.stoppage = true; s.causal.flurry = null;
     }
-    // T moved the clock back (a scoreboard correction, or NEXT typed too early): the stint in progress ends where
-    // play had reached and a new one starts at the corrected time, so the corrected interval is counted once more
-    // only if it is actually played again.
-    const back = f.action === 'set' && el < s.lastEl;
-    if (back) { this._advance(s, elapsedOf(stage, c.period, Math.min(c.remainingDs, now.remainingDs))); this._closeStint(s, s.lastEl); s.lastEl = el; }
+    // T moved the clock back (a scoreboard correction, or NEXT typed too early), or WHISTLE took back the moments
+    // after the whistle: the stint in progress ends where play had reached and a new one starts at the corrected
+    // time, so the corrected interval is counted once more only if it is actually played again.
+    const back = (f.action === 'set' || f.action === 'whistle') && el < s.lastEl;
+    if (back) { this._advance(s, elapsedOf(g, c.period, Math.min(c.remainingDs, now.remainingDs))); this._closeStint(s, s.lastEl); s.lastEl = el; }
     else if (changedPeriod) this._advance(s, el);     // the earlier period is over: penalties run to its end, and nothing typed late may land before this point
-    h.push({ atNs: at, period, remainingDs: rem, running });
+    h.push(whistle ? { atNs: at, period, remainingDs: rem, running, whistle: true } : { atNs: at, period, remainingDs: rem, running });
     Object.assign(c, { period, remainingDs: rem, running, refNs: at });
     if (!s.started && (f.action === 'start' || f.action === 'go')) s.started = { atNs: at, period, remainingDs: rem };
-    if ((changedPeriod && !(period === 5 && stage === 'REGULAR')) || (back && !(stage === 'REGULAR' && period >= 5))) this._rotate(s, el, changedPeriod ? 'NEU' : 'OTF');
-    return { status: 'APPLIED', clock: `${periodText(period, stage)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}${f.action === 'start' ? ' · game started' : ''}` };
+    let note = f.action === 'start' ? ' · game started' : '';
+    if (whistle) {
+      const rec = { period, remainingDs: rem };
+      if (whistle.amend && s.whistles.length) s.whistles[s.whistles.length - 1] = rec; else s.whistles.push(rec);
+      const k = s.whistles.filter((w) => w.period === period).length;
+      note = ` · whistle ${k} of ${periodText(period, g)}${whistle.amend ? ' (time set)' : ''}`;
+    }
+    if ((changedPeriod || back) && !OT.isShootout(b, period)) this._rotate(s, el, changedPeriod ? 'NEU' : 'OTF');
+    return { status: 'APPLIED', clock: `${periodText(period, g)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}${note}` };
   }
-  _decidedAtPeriodEnd(s, period) { const H = this.game.home, A = this.game.away; return period >= 3 && period !== 5 && s.teams[H].score !== s.teams[A].score; }
+  /** has the clock run in this period (since it began)? */
+  _ranIn(h, period) {
+    for (let i = h.length - 1; i >= 0; i--) { if (h[i].period !== period) return false; if (h[i].running) return true; }
+    return false;
+  }
+  _noLaterPeriod(b, p) {
+    if (b.so > 0) return `${this.game.stage === 'REGULAR' ? 'a regular-season game' : 'this game'} ends with the shootout (SO); there is no later period`;
+    if (b.repeat) return `no period ${p}`;
+    return `no period ${p}: this game ends after ${b.ot ? 'OT' : 'P3'}, and a tie stands`;
+  }
+  _decidedAtPeriodEnd(s, period) {
+    const H = this.game.home, A = this.game.away, b = OT.block(this.game);
+    return period >= 3 && !OT.isShootout(b, period) && (s.teams[H].score !== s.teams[A].score || OT.tieStandsAfter(b, period));
+  }
   _checkFinal(s) {
     if (s.result) return;
-    const H = this.game.home, A = this.game.away, c = s.clock, reg = this.game.stage === 'REGULAR';
-    if (c.period >= 4 && (!reg || c.period === 4) && s.teams[H].score !== s.teams[A].score) return this._finalize(s, 'OT');   // sudden death
-    if (reg && c.period >= 5 && s.soRoundsComplete && s.teams[H].soGoals !== s.teams[A].soGoals) return this._finalize(s, 'SO');
+    const H = this.game.home, A = this.game.away, c = s.clock, b = OT.block(this.game);
+    if (c.period >= 4 && !OT.isShootout(b, c.period) && s.teams[H].score !== s.teams[A].score) return this._finalize(s, 'OT');   // sudden death
+    if (OT.isShootout(b, c.period) && s.soRoundsComplete && s.teams[H].soGoals !== s.teams[A].soGoals) return this._finalize(s, 'SO');
     return undefined;
   }
   _finalize(s, decided) {
@@ -1686,12 +1908,12 @@ class GameActor {
   activePenalties(s, team) { return s.penalties.filter((p) => p.team === team && p.active && !p.done && p.strength).length; }
   skaters(s, team) {
     const opp = team === this.game.home ? this.game.away : this.game.home;
-    const otReg = this.game.stage === 'REGULAR' && s.clock.period === 4;
+    const K = OT.overtimeSkaters(OT.block(this.game), s.clock.period);   // overtime played short-handed (3 or 4 a side)
     const mine = this.activePenalties(s, team), theirs = this.activePenalties(s, opp);
     let n;
     // a tracked team never has fewer than three skaters: an unfinished lineup falls back to the penalty count
     if (s.shiftTracked[team] && s.onIce[team].size >= 3) n = s.onIce[team].size;
-    else if (otReg) n = Math.min(5, 3 + Math.max(0, theirs - mine));
+    else if (K) n = OT.shortSkaters(K, mine, theirs);
     else n = Math.max(3, 5 - Math.min(2, mine));
     if (!(s.shiftTracked[team] && s.onIce[team].size >= 3) && !s.goalie[team] && s.goalieKnown[team]) n += 1;   // goalie pulled: extra attacker
     return n;
@@ -1724,7 +1946,7 @@ class GameActor {
     if (el < s.lastEl) el = s.lastEl;                 // a frame latched in the past rotates lines now, not then
     else s.lastEl = el;
     this._closeStint(s, el);
-    if (s.result || (this.game.stage === 'REGULAR' && s.clock.period >= 5)) return;
+    if (s.result || OT.isShootout(OT.block(this.game), s.clock.period)) return;
     const H = this.game.home, A = this.game.away;
     s.active = { id: s.stints.length + 1, period: s.clock.period, startEl: el, endEl: el, strength: this.strength(s, H), homeSit: this.situation(s, H), awaySit: this.situation(s, A),
       homeScoreDiff: s.teams[H].score - s.teams[A].score, zoneStart: zone, ppExpiry: el - s.lastPenaltyExpiryEl <= PPX_S,
@@ -1775,7 +1997,7 @@ class GameActor {
   }
 
   /* ---------- the ICRE for tri-token events ---------- */
-  _latchEl(s, onsetNs) { const c = this._clockAt(s, onsetNs); return { period: c.period, remainingDs: c.remainingDs, el: elapsedOf(this.game.stage, c.period, c.remainingDs) }; }
+  _latchEl(s, onsetNs) { const c = this._clockAt(s, onsetNs); return { period: c.period, remainingDs: c.remainingDs, el: elapsedOf(this.game, c.period, c.remainingDs) }; }
   _event(s, f, entry, rev, assistOverride, refolding) {
     const g = this.game, team = f.team;
     if (team !== g.home && team !== g.away) return pure(`${team} is not playing in ${g.key} (${g.home} vs ${g.away})`);
@@ -1788,7 +2010,7 @@ class GameActor {
     if (s.result && stat !== 'A' && stat !== 'A1' && stat !== 'A2') return pure(`${g.key} is final (${s.result.decidedIn})`);
     if (s.ejected.has(p.pid) && stat !== 'A' && stat !== 'A1' && stat !== 'A2') return pure(`${team} ${p.code} was ejected from this game`);
     const latch = this._latchEl(s, entry.f.onsetNs);
-    const so = g.stage === 'REGULAR' && latch.period === 5;
+    const so = OT.isShootout(OT.block(g), latch.period);
     // goalie crease set (spec shift_tok "G")
     if (stat === 'G' && p.pos === 'G') return this._shift(s, team, p, 'IN', latch.el, entry);
     if (stat === 'IN' || stat === 'OUT') return this._shift(s, team, p, stat, latch.el, entry);
@@ -1812,7 +2034,8 @@ class GameActor {
       if (stat === 'G') { s.teams[team].soGoals++; }
       s.soAttempts = s.soAttempts || { [g.home]: 0, [g.away]: 0 }; s.soAttempts[team]++;
       const ah = s.soAttempts[g.home], aa = s.soAttempts[g.away], sh = s.teams[g.home].soGoals, sa = s.teams[g.away].soGoals;
-      if ((ah >= 3 && aa >= 3 && ah === aa && sh !== sa) || (ah <= 3 && aa <= 3 && (sh > sa + (3 - aa) || sa > sh + (3 - ah)))) { s.soRoundsComplete = true; this._checkFinal(s); }
+      const R = OT.block(g).so;            // rounds before sudden death: the game's rules (3 by default)
+      if ((ah >= R && aa >= R && ah === aa && sh !== sa) || (ah <= R && aa <= R && (sh > sa + (R - aa) || sa > sh + (R - ah)))) { s.soRoundsComplete = true; this._checkFinal(s); }
       ev.text = this._text(ev); this._push(s, ev);
       return { status: 'COMMITTED', event_seq: ev.seq, shootout: `${g.home} ${s.teams[g.home].soGoals} – ${g.away} ${s.teams[g.away].soGoals}` };
     }
@@ -1874,7 +2097,7 @@ class GameActor {
     if (stat !== 'G') s.causal.openGoal = s.causal.openGoal && s.causal.openGoal.assistsAllowed ? Object.assign(s.causal.openGoal, { closedByEvent: true }) : null;
     ev.text = this._text(ev);
     this._push(s, ev);
-    const res = { status: 'COMMITTED', event_seq: ev.seq, latched_clock: `${periodText(ev.period, g.stage)} ${clockText(ev.clockDs)}`, team, player: p.name, code: p.code, stat, score: `${g.home} ${s.teams[g.home].score} – ${g.away} ${s.teams[g.away].score}`, strength: ev.strength };
+    const res = { status: 'COMMITTED', event_seq: ev.seq, latched_clock: `${periodText(ev.period, g)} ${clockText(ev.clockDs)}`, team, player: p.name, code: p.code, stat, score: `${g.home} ${s.teams[g.home].score} – ${g.away} ${s.teams[g.away].score}`, strength: ev.strength };
     if (kind === 'shot') Object.assign(res, { coords: [ev.x, ev.y], coord_source: ev.coordSource, xg: ev.xg, flurry_adj_xg: ev.xgF, danger: ev.danger, rebound: ev.rebound, rush: ev.rush });
     if (ev.auto) res.auto = `${opp} ${ev.auto.code} ${ev.auto.stat}`;
     if (ev.penalty) res.penalty = ev.penalty;
@@ -1902,7 +2125,7 @@ class GameActor {
     s.causal.openGoal = { seq: ev.seq, team, commitNs: BigInt(ev.commitNs), assists: 0, assistsAllowed: true, closedByEvent: false };
     s.stoppage = true; s.causal.flurry = null; s.pendingZone = 'NEU';
     this._rotate(s, el, 'NEU');
-    if (g.stage === 'REGULAR' ? s.clock.period === 4 : s.clock.period >= 4) this._checkFinal(s);
+    if (s.clock.period >= 4 && !OT.isShootout(OT.block(g), s.clock.period)) this._checkFinal(s);
   }
   _penalty(s, ev, team, opp, p, b, el) {
     const minutes = Number(ev.stat.slice(1));
@@ -1996,12 +2219,18 @@ class GameActor {
     if (s.active) { const now = this._latchEl(s, wire.nowNs()).el; if (now > s.active.startEl) out.push(Object.assign({}, s.active, { endEl: now, live: true })); }
     return out;
   }
+  /** The overtime rules deciding this game: whose they are and what happens if regulation ends tied. */
+  overtime() {
+    const g = this.game, b = OT.block(g);
+    return { rules: g.ot ? 'league' : 'built-in', league: g.ot && g.ot.league || null, block: b.cls === 'po' ? 'playoff' : 'regular', length: b.ot, skaters: b.skaters, shootout: b.so, sudden: b.repeat, ties: OT.tieStandsAfter(b, b.ot ? 4 : 3), text: OT.summary(b) };
+  }
   scoreboard() {
     const s = this.s, g = this.game, c = s.clock, H = g.home, A = g.away;
     const pens = s.penalties.filter((p) => p.active && !p.done && p.strength).map((p) => ({ id: p.id, team: p.team, code: (this.registry.player(p.pid) || {}).code, kind: p.kind, infraction: p.infraction, endEl: p.endEl, startEl: p.startEl }));
     return { key: g.key, home: H, away: A, score: { [H]: s.teams[H].score, [A]: s.teams[A].score }, shootout: { [H]: s.teams[H].soGoals, [A]: s.teams[A].soGoals },
-      period: c.period, periodText: periodText(c.period, g.stage), remainingDs: c.remainingDs, running: c.running, refNs: c.refNs.toString(), periodLength: periodLength(g.stage, c.period),
-      started: !!this.s.started, startRule: g.start === 'frame' ? 'frame' : null,
+      period: c.period, periodText: periodText(c.period, g), remainingDs: c.remainingDs, running: c.running, refNs: c.refNs.toString(), periodLength: periodLength(g, c.period),
+      started: !!this.s.started, startRule: g.start === 'frame' ? 'frame' : null, overtime: this.overtime(),
+      whistleStop: !c.running && !!(s.clockHistory.length && s.clockHistory[s.clockHistory.length - 1].whistle), whistles: s.whistles.length, lastWhistle: s.whistles.length ? `${periodText(s.whistles[s.whistles.length - 1].period, g)} ${clockText(s.whistles[s.whistles.length - 1].remainingDs)}` : null,
       strength: this.strength(s, H), situation: { [H]: this.situation(s, H), [A]: this.situation(s, A) }, penalties: pens, final: s.result, events: s.events.length, ledger: this.ledger.length, version: this.version,
       goalies: { [H]: s.goalie[H] ? (this.registry.player(s.goalie[H]) || {}).code : null, [A]: s.goalie[A] ? (this.registry.player(s.goalie[A]) || {}).code : null },
       onIce: { [H]: [...s.onIce[H]].map((pid) => (this.registry.player(pid) || {}).code), [A]: [...s.onIce[A]].map((pid) => (this.registry.player(pid) || {}).code) } };
@@ -2070,7 +2299,7 @@ function withScore(events, home, away) {
 }
 const scoreDiff = (row, team, home) => (team === home ? row.h - row.a : row.a - row.h);
 
-function gameElapsed(game, s) { return elapsedOf(game.stage, s.clock.period, s.clock.remainingDs); }
+function gameElapsed(game, s) { return elapsedOf(game, s.clock.period, s.clock.remainingDs); }
 
 /**
  * Facts for team T in one game. Counts are plain numbers; `seen` records which token families occurred at all
@@ -2179,6 +2408,7 @@ function teamGame(game, s, T, opts = {}) {
   }
   // result
   const r = s.result;
+  if (r && r.decidedIn === 'TIE') f.POINTS = 1;            // a tie stands (the league's overtime rules, or END while level): a point each
   if (r && r.decidedIn !== 'TIE') {
     const won = r.winner === T;
     if (won) { f.W = 1; f.POINTS = 2; if (r.decidedIn === 'REG') f.RW = 1; if (r.decidedIn === 'OT') f.OT_WINS = 1; if (r.decidedIn === 'SO') f.SO_WINS = 1; if (r.comeback) f.COMEBACK_WINS = 1; if (r.margin === 1) f.ONE_GOAL_WINS = 1; }
@@ -3088,7 +3318,7 @@ class QueryEngine {
   }
   qEVENTS({ game, args, flags, caps }) {
     const c = this.scope({ game })[0]; const n = args[0] !== undefined ? count('EVENTS', args[0], 25, 1, 500) : count('--n', flags.n, 25, 1, 500);
-    const evs = c.actor.state.events.slice(-n).map((e) => ({ seq: e.seq, rev: e.rev, period: periodText(e.period, c.game.stage), clock: clockText(e.clockDs), elapsed: e.elapsed, team: e.team, code: e.code, name: e.name, stat: e.stat, mod: e.mod,
+    const evs = c.actor.state.events.slice(-n).map((e) => ({ seq: e.seq, rev: e.rev, period: periodText(e.period, c.game), clock: clockText(e.clockDs), elapsed: e.elapsed, team: e.team, code: e.code, name: e.name, stat: e.stat, mod: e.mod,
       x: e.x, y: e.y, coordSource: e.coordSource, xg: e.xg || null, xgF: e.xgF || null, danger: e.danger, rebound: e.rebound, rush: e.rush, strength: e.strength, situation: e.situation, assists: e.assists.filter(Boolean).map((pid) => (this.reg.player(pid) || {}).code), operator: caps.score ? e.operator : undefined, text: e.text, auto: e.auto ? `${e.opp} ${e.auto.code} ${e.auto.stat}` : null, penalty: e.penalty || null }));
     return { events: evs, total: c.actor.state.events.length, notes: c.actor.state.notes.slice(-10) };
   }
@@ -3107,7 +3337,7 @@ class QueryEngine {
   qSTINTS({ game, flags }) {
     const c = this.scope({ game })[0]; const n = count('--n', flags.n, 20, 1, 400);
     const code = (pid) => (this.reg.player(pid) || {}).code || '?';
-    const list = c.actor.liveStints().slice(-n).map((t) => ({ id: t.id, period: periodText(t.period, c.game.stage), start: t.startEl, end: t.endEl, dur: Math.round((t.endEl - t.startEl) * 10) / 10, strength: t.strength, zone: t.zoneStart, ppExpiry: t.ppExpiry, scoreDiff: t.homeScoreDiff,
+    const list = c.actor.liveStints().slice(-n).map((t) => ({ id: t.id, period: periodText(t.period, c.game), start: t.startEl, end: t.endEl, dur: Math.round((t.endEl - t.startEl) * 10) / 10, strength: t.strength, zone: t.zoneStart, ppExpiry: t.ppExpiry, scoreDiff: t.homeScoreDiff,
       home: t.homeSkaters.map(code), away: t.awaySkaters.map(code), homeCF: t.home.cf, awayCF: t.away.cf, homeXGF: r3(t.home.xgf), awayXGF: r3(t.away.xgf), live: !!t.live }));
     return { stints: list, total: c.actor.state.stints.length, home: c.game.home, away: c.game.away };
   }
@@ -3120,12 +3350,12 @@ class QueryEngine {
     const p = this.reg.resolvePlayer(t.toUpperCase(), tok); if (!p) throw new Error(`${safe(t, 4)} ${safe(tok, 6)}: no such player`);
     const pool = this.scope({ game, season: season || !game, team: p.team });
     const box = models.mergeBoxes(pool.map((c) => c.actor.state.players)); const b = box.get(p.pid);
-    const events = []; for (const c of pool) for (const e of c.actor.state.events) if (e.pid === p.pid || e.assists.includes(p.pid)) events.push({ game: c.game.key, seq: e.seq, period: periodText(e.period, c.game.stage), clock: clockText(e.clockDs), text: e.text, xg: e.xgF || null, assist: e.pid !== p.pid });
+    const events = []; for (const c of pool) for (const e of c.actor.state.events) if (e.pid === p.pid || e.assists.includes(p.pid)) events.push({ game: c.game.key, seq: e.seq, period: periodText(e.period, c.game), clock: clockText(e.clockDs), text: e.text, xg: e.xgF || null, assist: e.pid !== p.pid });
     return { player: Object.assign({}, p, { ageDays: this.reg.ageDays(p, new Date().toISOString().slice(0, 10)) }), line: b ? (p.pos === 'G' ? goalieRow(b, this.reg, models.CALIBRATION) : playerRow(b, this.reg)) : null, events: events.slice(-30), games: pool.length };
   }
   /* ---------------------------------------------------------------- scope */
   qSTANDINGS() {
-    const rows = new Map(); const row = (t) => rows.get(t) || rows.set(t, { team: t, gp: 0, w: 0, l: 0, otl: 0, pts: 0, gf: 0, ga: 0, rw: 0, xgf: 0, xga: 0, live: 0 }).get(t);
+    const rows = new Map(); const row = (t) => rows.get(t) || rows.set(t, { team: t, gp: 0, w: 0, l: 0, otl: 0, t: 0, pts: 0, gf: 0, ga: 0, rw: 0, xgf: 0, xga: 0, live: 0 }).get(t);
     for (const t of this.reg.teams()) row(t.code);
     for (const c of this.svc.allGames()) {
       const s = c.actor.state; if (!s.events.length) continue;
@@ -3133,12 +3363,12 @@ class QueryEngine {
         const f = teamGame(c.game, s, t), x = row(t);
         x.gf += f.G; x.ga += f.GA; x.xgf += f.xGF; x.xga += f.xGA;
         if (!s.result) { x.live++; continue; }
-        x.gp++; x.pts += f.POINTS; if (f.W) x.w++; else if (f.POINTS === 1) x.otl++; else x.l++; x.rw += f.RW;
+        x.gp++; x.pts += f.POINTS; if (f.W) x.w++; else if (s.result.decidedIn === 'TIE') x.t++; else if (f.POINTS === 1) x.otl++; else x.l++; x.rw += f.RW;
       }
     }
     const list = [...rows.values()].map((x) => Object.assign(x, { diff: x.gf - x.ga, xgf: r3(x.xgf), xga: r3(x.xga), ptsPct: x.gp ? r3(x.pts / (2 * x.gp)) : null }));
     list.sort((a, b) => b.pts - a.pts || b.rw - a.rw || b.diff - a.diff || a.team.localeCompare(b.team));
-    return { standings: list, rule: '2 points per win, 1 per overtime or shootout loss; ties broken by regulation wins, then goal differential' };
+    return { standings: list, rule: '2 points per win, 1 per overtime or shootout loss, 1 per tie; level teams are separated by regulation wins, then goal differential' };
   }
   qLEADERS({ flags }) {
     const pool = this.svc.allGames(); const box = models.mergeBoxes(pool.map((c) => c.actor.state.players));
@@ -3358,6 +3588,7 @@ D["rink/server/sim.js"]=function(module,exports,require,__dirname,__filename){
  */
 const XG = require('../shared/xg');
 const hash = require('../shared/hash');
+const OT = require('./overtime');
 
 function rng(seed) { let s = (seed >>> 0) || 1; return () => { s ^= s << 13; s >>>= 0; s ^= s >>> 17; s ^= s << 5; s >>>= 0; return s / 4294967296; }; }
 const NS = 1000000000n;
@@ -3390,6 +3621,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
     pairs[t] = [0, 1, 2].map((i) => [D[(2 * i) % D.length], D[(2 * i + 1) % D.length]].filter(Boolean));
     goalie[t] = registry.player(game.starters[t]) || byPos(t, 'G')[0];
   }
+  const rules = OT.block(game);                         // the game's overtime rules (its league's, or the built-in ones)
   let wall = startNs; let runFromWall = null, runFromEl = 0, periodLen = 1200, period = 1, elInPeriod = 0;
   const log = { lines: 0, rejected: [], goals: { [H]: 0, [A]: 0 } };
   const out = (line, onset) => {
@@ -3402,7 +3634,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
   // onset that latches exactly at in-period elapsed e while the clock runs
   const onsetAt = (e) => runFromWall + BigInt(Math.round((e - runFromEl) * 1e9));
   const go = () => { out(game.start === 'frame' && !state().started ? 'START' : 'GO'); runFromWall = wall + 600000000n; runFromEl = elInPeriod; wall = runFromWall + 200000000n; };
-  const stopAt = (e) => { out('STOP', onsetAt(e) - 600000000n); elInPeriod = e; wall = onsetAt(e) + BigInt(Math.round((12 + 25 * r()) * 1e9)); runFromWall = null; };
+  const stopAt = (e) => { out('WHISTLE', onsetAt(e) - 600000000n); elInPeriod = e; wall = onsetAt(e) + BigInt(Math.round((12 + 25 * r()) * 1e9)); runFromWall = null; };
   const at = (e, line) => { if (runFromWall === null) { out(line, wall); wall += 1000000000n; } else out(line, onsetAt(e)); };
   const pick = (arr) => arr[Math.floor(r() * arr.length)];
   const s0 = () => state();
@@ -3416,7 +3648,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
     li[t]++; if (r() < 0.6) pi[t]++;
     let skaters = [...free(t, fwd), ...free(t, d)];
     const pool = free(t, [...lines[t].flat(), ...pairs[t].flat()]).filter((p) => !skaters.includes(p));
-    const want = (period === 4 && game.stage === 'REGULAR' ? 3 : 5) - Math.min(2, pen[t]) + (extraAttacker ? 1 : 0);
+    const want = (OT.overtimeSkaters(rules, period) || 5) - Math.min(2, pen[t]) + (extraAttacker ? 1 : 0);   // overtime may be played 3 or 4 a side
     while (skaters.length < want && pool.length) skaters.push(pool.splice(Math.floor(r() * pool.length), 1)[0]);
     skaters = skaters.slice(0, Math.max(1, want));
     onIce[t] = skaters;
@@ -3534,13 +3766,14 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
   for (const p of [1, 2, 3]) { playPeriod(p, 1200); if (p < 3) { wall += 1000n * NS; say('NEXT'); } }
   wall += 60n * NS;
   const tied = () => s0().teams[H].score === s0().teams[A].score;
-  if (!tied()) { say('NEXT'); }                                       // decided in regulation: NEXT at the P3 buzzer finalises
+  if (!tied() || OT.tieStandsAfter(rules, 3)) { say('NEXT'); }        // decided in regulation, or a tie stands: NEXT at the P3 buzzer finalises
   else {
-    say('NEXT'); onIce.pulled = null;
-    if (game.stage === 'REGULAR') {
-      const res = playPeriod(4, 300);
-      if (res !== 'decided') {
-        wall += 120n * NS; say('NEXT');                             // into the shootout
+    say('NEXT'); onIce.pulled = null;                                // into overtime, or (no overtime) straight to the shootout
+    if (!rules.repeat) {
+      const res = rules.ot ? playPeriod(4, rules.ot) : 'played';
+      if (res !== 'decided' && !rules.so) { wall += 60n * NS; say('NEXT'); }   // the overtime ends level and a tie stands
+      else if (res !== 'decided') {
+        if (rules.ot) { wall += 120n * NS; say('NEXT'); }           // into the shootout
         const shooters = { [H]: lines[H].flat().slice(0, 6), [A]: lines[A].flat().slice(0, 6) };
         let k = 0; const so = { [H]: 0, [A]: 0 };
         while (k < 20 && !s0().result) {
@@ -3554,7 +3787,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
         if (!s0().result) say('END');
       }
     } else {
-      for (let ot = 4; ot < 12 && !s0().result; ot++) { const res = playPeriod(ot, 1200); if (res === 'decided') break; say('NEXT'); }
+      for (let ot = 4; ot < 12 && !s0().result; ot++) { const res = playPeriod(ot, rules.ot); if (res === 'decided') break; say('NEXT'); }
     }
   }
   const s = s0();
@@ -4936,6 +5169,7 @@ const { Driver } = require('./driver');
 const { RosterImporter } = require('./importer');
 const wire = require('../shared/wire');
 const codes = require('../shared/codes');
+const OT = require('./overtime');
 
 const VERSION = 'rink-vt/1.3';
 const META_MAGIC = 0x31544d43;            // "CMT1"
@@ -5175,6 +5409,25 @@ class RinkService extends EventEmitter {
       case 'teams': { need('query'); const lg = upper(args.league); if (lg && !this.registry.league(lg)) throw new RinkError('NOT_FOUND', `no league ${lg}`); const all = this.registry.teams().filter((t) => !lg || t.league === lg); const page = intArg(args.page, 1, 1, 1000); return { teams: all.slice((page - 1) * PAGE, page * PAGE), total: all.length, page, league: lg || null }; }
       case 'leagues': { need('query'); const n = new Map(); for (const t of this.registry.teams()) if (t.league) n.set(t.league, (n.get(t.league) || 0) + 1); return { leagues: this.registry.leagues().map((l) => Object.assign({}, l, { teams: n.get(l.code) || 0 })), unassigned: this.registry.teams().filter((t) => !t.league).length }; }
       case 'addleague': { need('admin'); const l = asRequest(() => this.registry.addLeague(args)); this.epoch++; return { league: l }; }
+      case 'overtime': {                      // a league's overtime rules: read them, or set or clear them (admin)
+        const words = Array.isArray(args.words) ? args.words.slice(0, 16).map((w) => str(w, 40)).filter(Boolean) : [];
+        const builtIn = 'built-in: regular season 5:00 3-on-3 overtime, then a shootout of 3 rounds · preseason, playoffs and championship 20:00 5-on-5 sudden-death periods';
+        const presets = Object.keys(OT.PRESETS).map((name) => ({ name, text: OT.PRESETS[name].text }));
+        const settings = Object.keys(OT.KEYS).map((k) => k + '=');
+        const row = (l) => ({ code: l.code, name: l.name_en, rules: l.overtime || null, text: l.overtime ? OT.describe(l.overtime) : builtIn });
+        const lg = upper(args.league);
+        if (!lg) { need('query'); return { leagues: this.registry.leagues().map(row), builtIn, presets, settings }; }
+        const l = this.registry.league(lg); if (!l) throw new RinkError('NOT_FOUND', `no league ${lg}`);
+        let changed = false;
+        if (words.length) {
+          need('admin');
+          const clear = words.length === 1 && /^(clear|built-in)$/i.test(words[0]);
+          changed = asRequest(() => this.registry.setOvertime(l.code, clear ? null : OT.apply(l.overtime || OT.PRESETS.standard, words)));
+          if (changed) this.epoch++;
+        } else need('query');
+        const existing = this.registry.games().filter((g) => { const o = this.registry.overtimeLeague(g.home, g.away); return !!o && o.code === l.code; }).length;
+        return Object.assign(row(l), { changed, existing, builtIn, presets, settings });
+      }
       case 'refs': {                        // every four-letter reference: leagues and their teams, or one team's players
         need('query'); const of = upper(args.of); const page = intArg(args.page, 1, 1, 1000);
         const teamRow = (t) => ({ code: t.code, name: t.name_en, league: t.league || '', city: t.city || '', players: this.registry.roster(t.code).length });
@@ -7519,7 +7772,7 @@ add('RETAINED_ENTRIES', 'Controlled entries that kept possession', 'entries', 't
 add('FORECHECK_ATTEMPTS', 'Forecheck attempts', 'events', 'team', 'TRANSITION', 'TOKEN', ['FC'], 'FC by the team');
 add('TURNOVER_TRANSITIONS', 'Transitions ending in a turnover', 'events', 'team', 'TRANSITION', 'INFER', ['ZE', 'ZX', 'GV'], 'ZE/F + ZX/F + team GV within 5.0 s after a successful team ZE/ZX');
 add('ENTRY_SHOTS', 'Entries leading to a shot attempt', 'entries', 'team', 'TRANSITION', 'INFER', ['ZE', 'S', 'G', 'M'], 'successful team ZE followed within 10.0 s by a team attempt');
-add('POINTS', 'Standings points', 'points', 'team', 'STANDINGS', 'RESULT', [], '2 per win, 1 per overtime or shootout loss');
+add('POINTS', 'Standings points', 'points', 'team', 'STANDINGS', 'RESULT', [], '2 per win, 1 per overtime or shootout loss, 1 per tie');
 add('W', 'Wins', 'games', 'team', 'STANDINGS', 'RESULT', [], 'completed games won');
 add('RW', 'Regulation wins', 'games', 'team', 'STANDINGS', 'RESULT', [], 'wins decided in periods 1-3');
 add('PP_OPP', 'Power-play opportunities', 'opportunities', 'team', 'SPECIAL', 'STATE', ['P2', 'P4', 'P5'], 'opponent penalties that gave the team more skaters');
@@ -8069,7 +8322,7 @@ function scoreLine(sb, o = {}) {
   const H = sb.home, A = sb.away; const ds = o.nowNs ? liveRemainingDs(sb, o.nowNs) : sb.remainingDs;
   const pen = (sb.penalties || []).map((p) => `${p.team} ${p.code || '?'} ${p.infraction || p.kind}`).join(', ');
   if (sb.final) return `${c('bold', H)} ${c('bold', String(sb.score[H]))} ${c('grey', '–')} ${c('bold', String(sb.score[A]))} ${c('bold', A)}  ${c('amber', 'FINAL' + (sb.final.decidedIn && sb.final.decidedIn !== 'REG' ? '/' + sb.final.decidedIn : ''))}`;
-  return `${c('bold', H)} ${c('bold', String(sb.score[H]))} ${c('grey', '–')} ${c('bold', String(sb.score[A]))} ${c('bold', A)}  ${c('cyan', sb.periodText)} ${clockOf(ds)} ${sb.running ? c('green', '▶') : c('grey', '⏸')}  ${c('grey', sb.strength)}${pen ? c('amber', '  PEN ' + pen) : ''}`;
+  return `${c('bold', H)} ${c('bold', String(sb.score[H]))} ${c('grey', '–')} ${c('bold', String(sb.score[A]))} ${c('bold', A)}  ${c('cyan', sb.periodText)} ${clockOf(ds)} ${sb.running ? c('green', '▶') : c('grey', sb.whistleStop ? '⏸ whistle' : '⏸')}  ${c('grey', sb.strength)}${pen ? c('amber', '  PEN ' + pen) : ''}`;
 }
 /** One line per frame result of a submitted command line. */
 function results(res, o = {}) {
@@ -8146,8 +8399,9 @@ function player(d, o = {}) {
 }
 function standings(d, o = {}) {
   const c = fmt.paint(o.color !== false);
-  return table([{ h: 'team' }, { h: 'GP', align: 'r' }, { h: 'W', align: 'r' }, { h: 'L', align: 'r' }, { h: 'OTL', align: 'r' }, { h: 'PTS', align: 'r' }, { h: 'P%', align: 'r' }, { h: 'RW', align: 'r' }, { h: 'GF', align: 'r' }, { h: 'GA', align: 'r' }, { h: 'DIFF', align: 'r' }, { h: 'xGF', align: 'r' }, { h: 'xGA', align: 'r' }, { h: 'live', align: 'r' }],
-    d.standings.map((r) => [c('cyan', r.team), r.gp, r.w, r.l, r.otl, c('bold', String(r.pts)), r.ptsPct === null ? '—' : r.ptsPct.toFixed(3), r.rw, r.gf, r.ga, sgn(r.diff, 0), f1(r.xgf), f1(r.xga), r.live || '']), o) + '\n' + c('grey', d.rule);
+  const ties = d.standings.some((r) => r.t);          // the T column appears once a tie stands
+  return table([{ h: 'team' }, { h: 'GP', align: 'r' }, { h: 'W', align: 'r' }, { h: 'L', align: 'r' }, { h: 'OTL', align: 'r' }, ...(ties ? [{ h: 'T', align: 'r' }] : []), { h: 'PTS', align: 'r' }, { h: 'P%', align: 'r' }, { h: 'RW', align: 'r' }, { h: 'GF', align: 'r' }, { h: 'GA', align: 'r' }, { h: 'DIFF', align: 'r' }, { h: 'xGF', align: 'r' }, { h: 'xGA', align: 'r' }, { h: 'live', align: 'r' }],
+    d.standings.map((r) => [c('cyan', r.team), r.gp, r.w, r.l, r.otl, ...(ties ? [r.t || 0] : []), c('bold', String(r.pts)), r.ptsPct === null ? '—' : r.ptsPct.toFixed(3), r.rw, r.gf, r.ga, sgn(r.diff, 0), f1(r.xgf), f1(r.xga), r.live || '']), o) + '\n' + c('grey', d.rule);
 }
 function leaders(d, o = {}) {
   const c = fmt.paint(o.color !== false); const col = (title, list, dec) => [c('bold', title), ...list.map((r, i) => `${String(i + 1).padStart(2)}. ${c('cyan', r.team + ' ' + r.code)} ${fmt.cut(r.name, 18).padEnd(18)} ${dec ? Number(r.value).toFixed(2) : r.value}`)];
@@ -8526,7 +8780,8 @@ const HELP = `${C.bold}RINK Virtual Terminal${C.reset} — one line, one fact.  
      stats  G S M B · A A1 A2 · FOW FOL (/O /D /N) · ZE ZX (/C /D /F) · H TK GV FC OMR · P2 P4 P5 P10 P20 PS · IN OUT
      shot   /1-9 zone · /W wrist /S slap /P snap /B backhand /T tip · /R rebound /U rush /X royal road · /x,y feet
   ${C.cyan}LINE TEAM P1 … P6${C.reset}          on-ice skaters (a goalie code sets the crease) — shift tracking for stints and RAPM
-  ${C.cyan}T 20:00 P1 · START · GO · STOP · NEXT · END${C.reset}   scoreboard clock: START is the game's start frame (the opening faceoff; the clock never runs before it), GO restarts it after a stoppage; events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in the playoffs)
+  ${C.cyan}T 20:00 P1 · START · GO · WHISTLE [mm:ss] · STOP · NEXT · END${C.reset}   scoreboard clock: START is the game's start frame (the opening faceoff; the clock never runs before it), GO restarts it after a stoppage, WHISTLE stops it at the whistle (WHISTLE 12:34 also sets it to the official clock's time; Esc in the workbench); events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in sudden-death playoffs)
+  ${C.cyan}rink overtime [LEAGUE] [preset | ot=5:00 skaters=3 shootout=3 playoff-ot=20:00 …]${C.reset}   a league's overtime rules: presets standard four-on-four international overtime-then-tie shootout-only ties; each new game keeps a copy
   ${C.cyan}UNDO · DEL n · FIX n TEAM PLAYER STAT[/mods] · FIX n A1=19 A2=44 XY=78,-4${C.reset}   corrections (appended, never overwritten)
   ${C.cyan}Q target${C.reset}                   SCORE BOX EVENTS XG STINTS PEN PLAYER STANDINGS LEADERS RAPM GSAX GAR NHLE HEAT LEDGER AUDIT ROSTER CODES HK001
   ${C.cyan}GAME key · LOCALE fr-CA${C.reset}     switch game · French tokens (B=but, T=tir, MG/MP mise en jeu …)
@@ -8622,8 +8877,8 @@ function leave(ctx, S) {
 const rinkCmd = {
   name: 'rink',
   summary: 'hockey statistics virtual terminal: score games, query the league, administer rosters',
-  usage: 'rink [GAME] | rink games | leagues | teams [LEAGUE] | roster TEAM | refs [LEAGUE|TEAM] | import PATH [--apply] | import formats | import examples [DIR] | new HOME AWAY [date] [stage] | addleague CODE "Name" ["Nom"] [ABBR] | addteam CODE "Name" ["Nom"] ["Arena"] [--league=CODE] [--city=…] | addplayer TEAM FIRST LAST JERSEY POS YYYY-MM-DD [L|R] [import] | sim [n] [seed] | ledger [verify] | note TEAM text | note del ID | notes [TEAM] | status | help',
-  complete: () => ['games', 'leagues', 'teams', 'roster', 'refs', 'import', 'new', 'addleague', 'addteam', 'addplayer', 'sim', 'ledger', 'note', 'notes', 'status', 'help'],
+  usage: 'rink [GAME] | rink games | leagues | teams [LEAGUE] | roster TEAM | refs [LEAGUE|TEAM] | import PATH [--apply] | import formats | import examples [DIR] | new HOME AWAY [date] [stage] | overtime [LEAGUE] [preset|key=value…|clear] | addleague CODE "Name" ["Nom"] [ABBR] | addteam CODE "Name" ["Nom"] ["Arena"] [--league=CODE] [--city=…] | addplayer TEAM FIRST LAST JERSEY POS YYYY-MM-DD [L|R] [import] | sim [n] [seed] | ledger [verify] | note TEAM text | note del ID | notes [TEAM] | status | help',
+  complete: () => ['games', 'leagues', 'teams', 'roster', 'refs', 'import', 'new', 'overtime', 'addleague', 'addteam', 'addplayer', 'sim', 'ledger', 'note', 'notes', 'status', 'help'],
   async run(ctx) {
     const S = st(ctx); const [sub, ...rest] = ctx.args; const w = ctx.cols || 100;
     try {
@@ -8666,6 +8921,22 @@ const rinkCmd = {
           const d = await call(ctx, 'addleague', { code: rest[0], name_en: rest[1], name_fr: rest[2], abbr: rest[3] });
           S.hello = null; ctx.stdout.write(`${paint('green', 'league')} ${d.league.code}  ${d.league.name_en}${d.league.abbr ? ' · ' + d.league.abbr : ''}\n`); return 0;
         }
+        case 'overtime': {
+          // rink overtime · rink overtime LEAGUE · rink overtime LEAGUE PRESET|key=value … · rink overtime LEAGUE clear
+          const d = await call(ctx, 'overtime', { league: rest[0], words: rest.slice(1) });
+          const presets = () => `${C.grey}presets  ${d.presets.map((p) => p.name).join(' · ')}   settings  ${d.settings.join(' ')}   clear (the built-in rules)${C.reset}\n` +
+            d.presets.map((p) => `${C.grey}  ${p.name.padEnd(18)} ${p.text}${C.reset}\n`).join('');
+          if (d.leagues) {
+            for (const l of d.leagues) ctx.stdout.write(`${paint('cyan', l.code)}  ${l.rules ? l.text : C.grey + l.text + C.reset}\n`);
+            if (!d.leagues.length) ctx.stdout.write(`${C.grey}no league yet — rink addleague CODE "Name", or rink import FILE; a game outside a league uses the ${d.builtIn}${C.reset}\n`);
+            ctx.stdout.write(presets()); return 0;
+          }
+          ctx.stdout.write(`${paint(d.changed ? 'green' : 'cyan', d.changed ? 'overtime set' : 'overtime')} ${d.code}  ${d.text}\n`);
+          if (d.changed) ctx.stdout.write(`${C.grey}games created from now on follow these rules · ${d.existing} existing game${d.existing === 1 ? ' keeps' : 's keep'} the rules ${d.existing === 1 ? 'it was' : 'they were'} created under${C.reset}\n`);
+          else if (rest.length > 1) ctx.stdout.write(`${C.grey}unchanged: ${d.code} already plays these rules${C.reset}\n`);
+          else ctx.stdout.write(presets());
+          return 0;
+        }
         case 'import': return await importRoster(ctx, rest, w);
         case 'roster': { const d = await call(ctx, 'q', { target: 'ROSTER', args: [rest[0] || ''] }); ctx.stdout.write(R().roster(d, { width: w }) + '\n'); return 0; }
         case 'new': {
@@ -8673,6 +8944,7 @@ const rinkCmd = {
           const d = await call(ctx, 'newgame', { home: rest[0], away: rest[1], date: rest[2], stage: rest[3] });
           await selectGame(ctx, d.game.key);
           ctx.stdout.write(`${paint('green', 'created')} ${d.game.key}  ${d.game.home} vs ${d.game.away}  ${d.game.date} ${d.game.stage}  ${C.grey}uuid ${d.game.uuid}${C.reset}\n${C.grey}start with: T 20:00 P1 · LINE … · ${d.game.start === 'frame' ? 'START at the opening faceoff (the clock waits for it)' : 'FOCO SMIT FOW · GO'}${C.reset}\n`);
+          if (S.sb && S.sb.overtime) ctx.stdout.write(`${C.grey}overtime: ${S.sb.overtime.text}${S.sb.overtime.league ? ` (${S.sb.overtime.league} rules)` : ' (built-in rules)'}${C.reset}\n`);
           return 0;
         }
         case 'addteam': {
@@ -9261,7 +9533,7 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     const first = v.trim().split(/\s+/)[0] || '';
     if (v.trim() && a && !(cmds.has(first) && !a.state.teams.includes(first.toUpperCase()))) { const r = a.analyze(v); st = r.state; g = r.ghost || ''; msg = r.state === 'error' ? r.message : r.state === 'incomplete' ? (r.hint ? 'next: ' + r.hint : '') + (r.candidates && r.candidates.length ? '  ' + r.candidates.slice(0, 8).join(' ') : '') : r.hint || ''; }
     else if (v.trim()) { const c = [...cmds.keys(), 'store', 'help', 'clear'].filter((k) => k.startsWith(first)); st = cmds.has(first) || ['help', 'clear', 'store'].includes(first) ? 'ok' : c.length ? 'incomplete' : 'error'; if (!/\s/.test(v) && c.length === 1) g = c[0].slice(first.length); msg = st === 'error' ? `${first}: not a command` : ''; }
-    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · START · GO · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
+    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · START · GO · WHISTLE (Esc) · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
     row.dataset.state = st; ghost.textContent = ''; const pad = document.createElement('span'); pad.textContent = v; const gi = document.createElement('i'); gi.textContent = g; ghost.append(pad, gi); hint.textContent = msg;
     return g;
   }
@@ -9272,7 +9544,18 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     else if (e.key === 'ArrowDown') { e.preventDefault(); if (hi < hist.length) { hi++; cmd.value = hist[hi] || ''; analyze(); } }
     else if (e.key === 'Tab') { e.preventDefault(); const a = assist(); const first = cmd.value.trim().split(/\s+/)[0] || ''; if (a && !cmds.has(first)) { cmd.value = a.complete(cmd.value).line; } else { const g = analyze(); if (g) cmd.value += g + ' '; } analyze(); }
     else if ((e.key === 'ArrowRight' || e.key === 'End') && cmd.selectionStart === cmd.value.length) { const g = analyze(); if (g) { e.preventDefault(); cmd.value += g; analyze(); } }
+    else if (e.key === 'Escape') { e.preventDefault(); if (!e.repeat) whistleKey(); }
   });
+  // Esc is the whistle: while the clock of the open game runs, one key stops it at the moment the key goes down,
+  // whatever is half-typed on the command line (the line is kept). With the clock stopped Esc changes nothing.
+  let whistling = false;
+  async function whistleKey() {
+    const S = session.rink; if (!session.mode || !svc || !S || !S.game || whistling) return;
+    let sb; try { sb = svc.ctx(S.game).actor.scoreboard(); } catch { return; }
+    if (sb.final || !sb.running) { hint.textContent = sb.final ? 'the game is final' : 'the clock is stopped · Esc stops it at the whistle while it runs · WHISTLE mm:ss sets the time the whistle went'; return; }
+    whistling = true; try { await exec('WHISTLE', wire.nowNs()); } finally { whistling = false; } cmd.focus(); analyze();
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && e.target !== cmd && !e.defaultPrevented && !e.repeat) { e.preventDefault(); whistleKey(); } });
   for (const b of document.querySelectorAll('#chips button:not([data-pick])')) b.addEventListener('click', async () => { const line = b.textContent; hist.push(line); hi = hist.length; await exec(line, wire.nowNs()); cmd.focus(); analyze(); });
   const picker = $('file');
   $('pick').addEventListener('click', () => picker.click());
@@ -9315,7 +9598,8 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     }
     if (tab === 'league' || !key) {
       const d = svc.handle(ME, 'q', { target: 'STANDINGS' });
-      pane.append(table([{ h: 'team' }, { h: 'GP', r: 1 }, { h: 'W', r: 1 }, { h: 'L', r: 1 }, { h: 'OTL', r: 1 }, { h: 'PTS', r: 1 }, { h: 'GF', r: 1 }, { h: 'GA', r: 1 }, { h: 'xGF', r: 1 }, { h: 'xGA', r: 1 }], d.standings.map((r) => [r.team, r.gp, r.w, r.l, r.otl, r.pts, r.gf, r.ga, f3(r.xgf), f3(r.xga)])));
+      const ties = d.standings.some((r) => r.t);
+      pane.append(table([{ h: 'team' }, { h: 'GP', r: 1 }, { h: 'W', r: 1 }, { h: 'L', r: 1 }, { h: 'OTL', r: 1 }, ...(ties ? [{ h: 'T', r: 1 }] : []), { h: 'PTS', r: 1 }, { h: 'GF', r: 1 }, { h: 'GA', r: 1 }, { h: 'xGF', r: 1 }, { h: 'xGA', r: 1 }], d.standings.map((r) => [r.team, r.gp, r.w, r.l, r.otl, ...(ties ? [r.t || 0] : []), r.pts, r.gf, r.ga, f3(r.xgf), f3(r.xga)])));
       return;
     }
     if (tab === 'box') {
@@ -9336,7 +9620,7 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     const el0 = Number((wire.nowNs() - BigInt(sb.refNs)) / 100000000n); const ds = sb.running ? Math.max(0, sb.remainingDs - el0) : sb.remainingDs;
     const clk = `${Math.floor(ds / 600)}:${String(Math.floor(ds / 10) % 60).padStart(2, '0')}`;
     box.append(el('span', null, sb.home), el('span', 'g', String(sb.score[sb.home])), el('span', 's', '–'), el('span', 'g', String(sb.score[sb.away])), el('span', null, sb.away),
-      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : '⏸'}  ${sb.strength}${sb.started ? '' : '  · not started: START at the opening faceoff'}`));
+      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : sb.whistleStop ? '⏸ whistle' : '⏸'}  ${sb.strength}${sb.started ? '' : '  · not started: START at the opening faceoff'}`));
     for (const p of sb.penalties) box.append(el('span', 'pen', `${p.team} ${p.code || ''} ${p.infraction || p.kind}`));
   }
   function refresh() {

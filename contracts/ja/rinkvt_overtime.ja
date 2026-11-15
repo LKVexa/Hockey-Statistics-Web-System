@@ -1,0 +1,92 @@
+ja source 0.3
+module rinkvt.contract.overtime
+use Core
+policy no_network
+
+const regulation_seconds: Count = 1200
+const max_period: Count = 12
+record Block { ot: Count, skaters: Count, so: Count }
+record Rules { reg: Block, po: Block }
+record Decider { ot: Count, skaters: Count, so: Count, repeat: Bool }
+enum Stage { Preseason, Regular, Playoff, Championship }
+enum Decided { Regulation, Overtime, Shootout, Tie }
+function block_ok(b: Block, playoff: Bool) -> Bool effects { pure } {
+    return (b.ot == 0 || (b.ot >= 60 && b.ot <= 1200)) && b.skaters >= 3 && b.skaters <= 5 && b.so <= 10 && (playoff == false || b.ot > 0)
+}
+function decider(rules: Option<Rules>, stage: Stage) -> Decider effects { pure } {
+    match rules {
+        None => match stage {
+            Stage.Regular => Decider { ot: 300, skaters: 3, so: 3, repeat: false },
+            _ => Decider { ot: 1200, skaters: 5, so: 0, repeat: true },
+        },
+        Some(r) => match stage {
+            Stage.Playoff => Decider { ot: r.po.ot, skaters: r.po.skaters, so: r.po.so, repeat: r.po.so == 0 },
+            Stage.Championship => Decider { ot: r.po.ot, skaters: r.po.skaters, so: r.po.so, repeat: r.po.so == 0 },
+            _ => Decider { ot: r.reg.ot, skaters: r.reg.skaters, so: r.reg.so, repeat: false },
+        },
+    }
+}
+function is_shootout(d: Decider, period: Count) -> Bool effects { pure } {
+    return d.so > 0 && period == 5
+}
+function period_seconds(d: Decider, period: Count) -> Count effects { pure } {
+    match period {
+        p if p <= 3 => regulation_seconds,
+        4 => d.ot,
+        p if is_shootout(d, p) => 0,
+        _ => if d.repeat { d.ot } else { 0 },
+    }
+}
+function last_period(d: Decider) -> Count effects { pure } {
+    match d {
+        x if x.so > 0 => 5,
+        x if x.repeat => max_period,
+        x if x.ot > 0 => 4,
+        _ => 3,
+    }
+}
+function next_period(d: Decider, period: Count) -> Count effects { pure } {
+    match period {
+        3 if d.ot == 0 && d.so > 0 => 5,
+        p => p + 1,
+    }
+}
+function tie_stands_after(d: Decider, period: Count) -> Bool effects { pure } {
+    return d.repeat == false && d.so == 0 && period >= (if d.ot > 0 { 4 } else { 3 })
+}
+function short_skaters(k: Int, mine: Int, theirs: Int) -> Int effects { pure } {
+    match mine - theirs {
+        net if net > 0 => Int.max(3, k - net),
+        net => Int.min(5, k + Int.max(0, (0 - net) - (k - 3))),
+    }
+}
+function shootout_complete(rounds: Int, home_attempts: Int, away_attempts: Int, home_goals: Int, away_goals: Int) -> Bool effects { pure } {
+    let level: Bool = home_attempts >= rounds && away_attempts >= rounds && home_attempts == away_attempts && home_goals != away_goals
+    let out_of_reach: Bool = home_attempts <= rounds && away_attempts <= rounds && (home_goals > away_goals + (rounds - away_attempts) || away_goals > home_goals + (rounds - home_attempts))
+    return level || out_of_reach
+}
+function points(decided: Decided, won: Bool) -> Count effects { pure } {
+    match decided {
+        Decided.Tie => 1,
+        _ if won => 2,
+        Decided.Regulation => 0,
+        _ => 1,
+    }
+}
+let standard: Rules = Rules { reg: Block { ot: 300, skaters: 3, so: 3 }, po: Block { ot: 1200, skaters: 5, so: 0 } }
+let four_on_four: Rules = Rules { reg: Block { ot: 300, skaters: 4, so: 3 }, po: Block { ot: 1200, skaters: 5, so: 0 } }
+let international: Rules = Rules { reg: Block { ot: 300, skaters: 3, so: 5 }, po: Block { ot: 600, skaters: 3, so: 5 } }
+let overtime_then_tie: Rules = Rules { reg: Block { ot: 300, skaters: 3, so: 0 }, po: Block { ot: 1200, skaters: 5, so: 0 } }
+let shootout_only: Rules = Rules { reg: Block { ot: 0, skaters: 3, so: 3 }, po: Block { ot: 1200, skaters: 5, so: 0 } }
+let ties: Rules = Rules { reg: Block { ot: 0, skaters: 3, so: 0 }, po: Block { ot: 1200, skaters: 5, so: 0 } }
+assert decider(None, Stage.Regular) == decider(Some(standard), Stage.Regular)
+assert decider(None, Stage.Playoff) == decider(Some(standard), Stage.Playoff)
+assert decider(None, Stage.Preseason) == Decider { ot: 1200, skaters: 5, so: 0, repeat: true }
+assert last_period(decider(Some(ties), Stage.Regular)) == 3
+assert tie_stands_after(decider(Some(overtime_then_tie), Stage.Regular), 4)
+assert next_period(decider(Some(shootout_only), Stage.Regular), 3) == 5
+assert period_seconds(decider(Some(international), Stage.Playoff), 4) == 600
+assert short_skaters(3, 0, 1) == 4 && short_skaters(3, 0, 2) == 5 && short_skaters(4, 1, 0) == 3 && short_skaters(4, 0, 2) == 5
+assert shootout_complete(3, 3, 3, 1, 0) && shootout_complete(5, 3, 3, 1, 0) == false && shootout_complete(5, 5, 5, 1, 0)
+assert points(Decided.Tie, false) == 1 && points(Decided.Overtime, false) == 1 && points(Decided.Regulation, false) == 0
+emit json standard

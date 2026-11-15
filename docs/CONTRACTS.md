@@ -33,7 +33,8 @@ and a few top-level assertions on sample values.
 
 | Source | Module | Describes |
 |---|---|---|
-| `rinkvt_frame.ja` | `rinkvt.contract.frame` | the 64-byte frame, the meta line, and the pair check the store applies |
+| `rinkvt_frame.ja` | `rinkvt.contract.frame` | the 64-byte frame, the meta line, the pair check the store applies, the start frame and the whistle |
+| `rinkvt_overtime.ja` | `rinkvt.contract.overtime` | a league's overtime rules and the six presets: which block decides a game, period lengths, the last period, NEXT, when a tie stands, overtime strength, shootout rounds, standings points |
 | `rinkvt_loopback.ja` | `rinkvt.contract.loopback` | the device key, canonical IP keys, the slot function, a lease with a pin, a laptop's lease through its fleet register |
 | `rinkvt_store.ja` | `rinkvt.contract.store` | a commit: admission (seal, games, start, size) then sealed, chained, synced writes |
 | `rinkvt_host.ja` | `rinkvt.contract.host` | request admission: Host, Origin, media type, token, length |
@@ -42,7 +43,7 @@ They are **modeled contracts**. The JA21 suite supplies no JA Core parser, compi
 not claim one: nothing executes these files. They are checked as the suite's `tools/validate_suite.py` checks its
 own scripts (the source header, `module`, `policy no_network`, brace balance), against the grammar's top-level
 forms, and — what makes them more than prose — every constant they state (the CRC-32C check value, the meta magic,
-the pool and its capacity, the first lease of 203.0.113.5, a device key and its first address, the store's limits, the token header, the body limit) is
+the clock bytes of START and WHISTLE, the six overtime presets and the built-in rules, the pool and its capacity, the first lease of 203.0.113.5, a device key and its first address, the store's limits, the token header, the body limit) is
 compared with the implementation's own value by `tools/contracts.py check`.
 
 ## Checking

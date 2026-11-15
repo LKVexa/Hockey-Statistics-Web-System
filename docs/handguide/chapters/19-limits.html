@@ -33,7 +33,8 @@
 
 <h2>Engine and laboratory</h2>
 <ul>
-<li>The start frame belongs to this edition's engine ({{engine}}); the reference edition {{reference}} does not have it yet. Games created by 2.5.0-lkvexa.1 have no start frame and start with their first <code>GO</code>.</li>
+<li>The start frame, the whistle and the league overtime rules belong to this edition's engine ({{engine}}); the reference edition {{reference}} does not have them yet. Games created by 2.5.0-lkvexa.1 have no start frame and start with their first <code>GO</code>; games created before 2.5.0-lkvexa.3, or for teams in no league with rules, play the built-in overtime rules.</li>
+<li>A whistle records when the clock stopped, not why: icings, offsides and the like are not told apart. The overtime rules cover the regular and playoff blocks of a league; rules per season, per series or per game are not offered.</li>
 <li>The heat maps use the JavaScript kernel; the reference edition's XPU (WebAssembly) kernel is not part of this edition. Both give the same integers.</li>
 <li>The models are descriptive under declared assumptions; the NHLe factors are placeholders ({{ref:models}}). HK001 is a synthetic research laboratory with no predictive authority.</li>
 <li>The engine's own test suite runs in the reference edition; this edition exercises the engine through its browser tests and its store tests on real engine output.</li>

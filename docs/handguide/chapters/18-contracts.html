@@ -39,7 +39,8 @@
 <colgroup><col style="width:26%"><col style="width:28%"><col style="width:46%"></colgroup>
 <thead><tr><th>Source</th><th>Module</th><th>Describes</th></tr></thead>
 <tbody>
-<tr><td><code>rinkvt_frame.ja</code></td><td><code>rinkvt.contract.frame</code></td><td>The frame, the meta line, and the pair check the store applies</td></tr>
+<tr><td><code>rinkvt_frame.ja</code></td><td><code>rinkvt.contract.frame</code></td><td>The frame, the meta line, the pair check the store applies, the start frame and the whistle</td></tr>
+<tr><td><code>rinkvt_overtime.ja</code></td><td><code>rinkvt.contract.overtime</code></td><td>A league's overtime rules and the six presets: which block decides a game, period lengths, the last period, <code>NEXT</code>, when a tie stands, overtime strength, shootout rounds, standings points</td></tr>
 <tr><td><code>rinkvt_loopback.ja</code></td><td><code>rinkvt.contract.loopback</code></td><td>The device key, canonical IP keys, the slot function, a lease with a pin, a laptop's lease through its fleet register</td></tr>
 <tr><td><code>rinkvt_store.ja</code></td><td><code>rinkvt.contract.store</code></td><td>The admission of a commit, then its sealed, chained, synced writes</td></tr>
 <tr><td><code>rinkvt_host.ja</code></td><td><code>rinkvt.contract.host</code></td><td>The admission of a request: Host, Origin, media type, token, length</td></tr>
@@ -50,7 +51,7 @@
 
 <h2 key="checking-contracts">Checking with the corpus validators</h2>
 <ol class="proc">
-<li><p><code>python -I -B tools/contracts.py check</code> validates every record with the release's own implementation of the corpus's single-document rules, compares records 00–60 with what the generator writes, checks the qualification, checks the JA sources and cross-checks their constants.</p></li>
+<li><p><code>python -I -B tools/contracts.py check</code> validates every record with the release's own implementation of the corpus's single-document rules, compares records 00–60 with what the generator writes, checks the qualification, checks the JA sources and cross-checks their constants — among them the clock bytes of <code>START</code> and <code>WHISTLE</code>, read from the engine's wire format, and the six overtime presets and the built-in rules, read from the engine's <code>overtime.js</code>.</p></li>
 <li><p>Add <code>--mssl-verifier &lt;MSSL_WRITERS_CORPUS_1.0.0&gt;/tools/VERIFY_MSSL.py</code> to have the corpus's own validator (its <code>validate_source</code>) check every record as well. The validator is loaded from the user's copy of the corpus and only reads.</p></li>
 <li><p>The JA sources are checked as the JA Core suite's <code>tools/validate_suite.py</code> checks the suite's own scripts — the source header, <code>module</code>, <code>policy no_network</code>, balanced braces — and, in addition, line 1 must be the header, line 2 the module, every top-level line a declaration or statement of the provisional grammar, brackets and parentheses balanced, and no tab used.</p></li>
 </ol>

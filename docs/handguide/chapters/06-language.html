@@ -8,7 +8,7 @@
 <tbody>
 <tr><td><code>TEAM PLAYER STAT[/mod…]</code></td><td>One event. PLAYER is the player's four-letter code, <code>J91</code>, <code>0091</code> or <code>91</code> (the jersey)</td></tr>
 <tr><td><code>LINE TEAM P1 … P6</code></td><td>The skaters on the ice for TEAM; a goalie's code sets the crease. A team with a LINE is tracked by shifts from then on ({{ref:lineups}})</td></tr>
-<tr><td><code>T mm:ss [P1·P2·P3·OT·SO]</code> · <code>START</code> · <code>GO</code> · <code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>The scoreboard clock. <code>START</code> is the game's start frame, the opening faceoff; the clock never runs before it. <code>CLOCK GO</code> and the like also work. Playoff overtime periods are <code>OT</code>, <code>OT2</code> … <code>OT9</code> ({{ref:clock}})</td></tr>
+<tr><td><code>T mm:ss [P1·P2·P3·OT·SO]</code> · <code>START</code> · <code>GO</code> · <code>WHISTLE [mm:ss]</code> · <code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>The scoreboard clock. <code>START</code> is the game's start frame, the opening faceoff; the clock never runs before it. <code>WHISTLE</code> stops it when the whistle goes. <code>CLOCK GO</code> and the like also work. Overtime follows the game's rules; sudden-death playoff periods are <code>OT</code>, <code>OT2</code> … <code>OT9</code> ({{ref:clock}}, {{ref:overtime}})</td></tr>
 <tr><td><code>UNDO</code> · <code>DEL n</code> · <code>FIX n …</code></td><td>Corrections, appended to the ledger and never overwritten ({{ref:corrections}})</td></tr>
 <tr><td><code>Q TARGET [args] [--flags]</code></td><td>Queries ({{ref:queries}})</td></tr>
 <tr><td><code>GAME key</code> · <code>LOCALE fr-CA</code> · <code>HELP</code> · <code>EXIT</code></td><td>Select another game · use the French aliases · list the language · leave RINK mode</td></tr>
@@ -52,12 +52,52 @@ KELW BARK P2/TRP        a two-minute minor for tripping</pre>
 <tr><td><code>T mm:ss [period]</code></td><td>Sets the scoreboard clock without starting it: <code>T 20:00 P1</code> before a game, <code>T 12:31</code> to correct it. A clock time is at most 20:00 and a period at most 12</td></tr>
 <tr><td><code>START</code></td><td>The start frame: the opening faceoff. The clock runs from this line, from the time it shows (20:00 P1 unless <code>T</code> set another). A game has one start frame; a second <code>START</code> is refused and names the moment the game started</td></tr>
 <tr><td><code>GO</code></td><td>Restarts the clock after a stoppage or at the start of a later period. In a game created in this edition, <code>GO</code> before <code>START</code> is refused: "the game has not started: type START at the opening faceoff"</td></tr>
-<tr><td><code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>Stops the clock (a stoppage) · moves to the next period, stopped at its full length · ends the game</td></tr>
+<tr><td><code>WHISTLE [mm:ss]</code></td><td>The whistle: stops the running clock, and play is dead until the faceoff. <code>WHISTLE 12:34</code> also sets the clock to the time the official clock showed when the whistle went, which takes back the moment between the whistle and the keystroke; typed after a whistle has already stopped the clock, it sets that whistle's time, and after <code>STOP</code> it makes the stoppage a whistle. In the workbench <kbd>Esc</kbd> is the whistle ({{ref:input-assist}})</td></tr>
+<tr><td><code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>Stops the clock without a whistle · moves to the next period of the game's overtime rules, stopped at its full length ({{ref:overtime}}) · ends the game</td></tr>
 </tbody>
 </table>
 <p>The start frame is a frame like any other line: it is recorded in the ledger (<code>CLOCK START</code> in <code>Q AUDIT</code>), and the clock history begins with it. The rule applies to every game created in this edition, by <code>rink new</code> and by <code>rink sim</code> (whose synthetic games are started with <code>START</code>); a game created by an earlier build has no start frame and starts with its first <code>GO</code>, as it always did, so its ledger replays unchanged.</p>
+<p>A whistle is refused when there is no play for it to stop — before the game has started, before the clock has run in the period, in the shootout — and, without a time, when the clock already stands still (<i>the clock is already stopped at P2 12:33; GO restarts it · WHISTLE mm:ss sets the time the whistle went</i>). A whistle's time is at most the period's length. Every whistle is a frame in the ledger (<code>CLOCK WHISTLE</code>, or <code>CLOCK WHISTLE 12:34</code>, in <code>Q AUDIT</code>); the reply counts the period's whistles (<i>P2 12:34 ⏸ · whistle 6 of P2</i>), the scoreboard counts the game's and names the last, and the score bar shows <i>⏸ whistle</i> while the clock stands at one. A whistle that sets the clock back after a line was already entered behaves as <code>T</code> setting it back: the stint in progress ends where play had reached, and a new one starts at the whistle's time.</p>
 <p>The clock history is piecewise, and every event takes the clock at its first keystroke, not at <kbd>Enter</kbd>: a scorer who starts typing a goal at 14:02 and finishes at 13:58 records the goal at 14:02. Events typed while the clock stands still take the time it shows.</p>
-<p>A regular-season game has periods 1 to 5: three of regulation, a sudden-death 3-on-3 overtime of 5:00 and a shootout (best of three, then sudden death). In other stages, playoff overtime periods of 20:00 follow until a goal, up to period 12.</p>
+<h2 key="overtime">Overtime rules</h2>
+<p>When regulation ends level, a game is decided by its <b>overtime rules</b>. A league sets them with <code>rink overtime</code>, and every game created for the league's teams keeps a copy of them from its creation: the home team's league's, or the away team's when the home team is in none. A game keeps the rules it was created under whatever the league changes later, so a change applies to the games created after it, and every recorded game replays exactly as it was played. A game outside any league with rules, and every game created by an earlier build, keeps the <b>built-in rules</b>.</p>
+<p>The rules have two blocks: the <b>regular block</b> decides regular-season and preseason games, the <b>playoff block</b> playoff and championship games. Each block has three settings.</p>
+<table class="t" key="tbl-ot-settings" caption="The settings of a league's overtime rules">
+<colgroup><col style="width:32%"><col style="width:22%"><col style="width:46%"></colgroup>
+<thead><tr><th>Setting (regular · playoff)</th><th>Values</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>ot=</code> · <code>playoff-ot=</code></td><td><code>0</code>, or <code>1:00</code> to <code>20:00</code></td><td>The overtime period's length; <code>0</code> is no overtime, in the regular block only (a playoff game must be decided)</td></tr>
+<tr><td><code>skaters=</code> · <code>playoff-skaters=</code></td><td><code>3</code>, <code>4</code> or <code>5</code></td><td>Skaters a side in overtime</td></tr>
+<tr><td><code>shootout=</code> · <code>playoff-shootout=</code></td><td><code>0</code>, or <code>1</code> to <code>10</code></td><td>Shootout rounds after the overtime, then sudden death; <code>0</code> is no shootout</td></tr>
+</tbody>
+</table>
+<p>The clock commands, the shootout, the strength and the result all follow the rules:</p>
+<ul>
+<li><b>Periods.</b> P1 to P3 are regulation, 20:00 each. Period 4 is the overtime (<code>OT</code>) of the block's length; period 5 is the shootout (<code>SO</code>) when there is one. With no overtime, <code>NEXT</code> at the end of P3 goes straight to the shootout and <code>T … OT</code> is refused. A playoff block without a shootout plays sudden-death periods of its length until a goal: <code>OT1</code> to <code>OT9</code>, periods 4 to 12.</li>
+<li><b>Sudden death.</b> A goal in overtime ends the game. The shootout ends as soon as one side can no longer be caught within its rounds, or when the rounds are complete with one side ahead; level after them, it goes on round by round.</li>
+<li><b>Ties.</b> Where the block has no shootout and no further overtime, a game still level at the end of its last period ends tied: <code>NEXT</code> or <code>END</code> there makes it final, <i>TIE</i>. A tie earns each side one point, and the standings add a <b>T</b> column.</li>
+<li><b>Strength.</b> Overtime played 3 or 4 a side starts at that strength. A penalty takes a skater from the penalized side down to three, then gives the other side one more, up to five: 3 on 3 becomes 4 on 3, then 5 on 3; 4 on 4 becomes 4 on 3, then 5 on 3. The scoreboard's strength and every stint follow it.</li>
+<li><b>Refusals.</b> A clock command the rules do not allow is refused and says why: <i>no period 4: this game ends after P3, and a tie stands</i>; <i>the shootout decides the game; type the attempts, or END</i>.</li>
+</ul>
+<table class="t" key="tbl-ot-presets" caption="Overtime presets">
+<colgroup><col style="width:20%"><col style="width:40%"><col style="width:40%"></colgroup>
+<thead><tr><th>Preset</th><th>Regular season and preseason</th><th>Playoffs and championship</th></tr></thead>
+<tbody>
+<tr><td><code>standard</code></td><td>5:00 3-on-3 overtime, then a shootout of 3 rounds</td><td>20:00 5-on-5 sudden-death periods</td></tr>
+<tr><td><code>four-on-four</code></td><td>5:00 4-on-4 overtime, then a shootout of 3 rounds</td><td>20:00 5-on-5 sudden-death periods</td></tr>
+<tr><td><code>international</code></td><td>5:00 3-on-3 overtime, then a shootout of 5 rounds</td><td>10:00 3-on-3 overtime, then a shootout of 5 rounds</td></tr>
+<tr><td><code>overtime-then-tie</code></td><td>5:00 3-on-3 overtime, and a tie stands</td><td>20:00 5-on-5 sudden-death periods</td></tr>
+<tr><td><code>shootout-only</code></td><td>No overtime; a shootout of 3 rounds</td><td>20:00 5-on-5 sudden-death periods</td></tr>
+<tr><td><code>ties</code></td><td>No overtime, and a tie stands</td><td>20:00 5-on-5 sudden-death periods</td></tr>
+</tbody>
+</table>
+<pre>rink overtime                                every league's rules, presets and settings
+rink overtime MTNL                           one league's rules
+rink overtime MTNL international             a preset
+rink overtime MTNL shootout=5 ot=4:00        settings over the league's rules
+rink overtime MTNL four-on-four shootout=5   a preset, then a setting
+rink overtime MTNL clear                     the built-in rules again</pre>
+<p>The built-in rules are those of every earlier build: a regular-season game plays a 5:00 3-on-3 sudden-death overtime and a shootout of three rounds; a game of any other stage, preseason included, plays 20:00 sudden-death periods until a goal, up to period 12. They equal <code>standard</code> except in preseason, where a league's rules apply the regular block. <code>rink new</code> names the rules a new game keeps — <i>overtime: 5:00 3-on-3 OT, shootout 3 (MTNL rules)</i> — and the scoreboard carries them as <code>overtime</code>. Setting a league's rules needs the administrative capability, which the operator holds in this edition.</p>
 
 <h2 key="lineups">Lineups</h2>
 <p><code>LINE TEAM P1 … P6</code> names a team's players on the ice; a goalie's code among them sets the crease. A team with a line is tracked by shifts: every change of a line rotates the stint ({{ref:stints}}). <code>IN</code> and <code>OUT</code> events record single changes. A line of more than three players is carried by two system frames (<code>!LIN</code> and <code>!LIA</code>), applied together.</p>
@@ -101,7 +141,8 @@ KELW BARK P2/TRP        a two-minute minor for tripping</pre>
 <thead><tr><th>Subcommand</th><th>Effect</th></tr></thead>
 <tbody>
 <tr><td><code>rink [GAME]</code> · <code>rink games</code></td><td>Enter RINK mode on GAME, or on the current game; list the games. On opening, the window enters RINK mode on the newest game still in progress</td></tr>
-<tr><td><code>rink new HOME AWAY [date] [stage]</code></td><td>Create a game; it becomes <code>G1</code>, <code>G2</code> … in order</td></tr>
+<tr><td><code>rink new HOME AWAY [date] [stage]</code></td><td>Create a game; it becomes <code>G1</code>, <code>G2</code> … in order, and keeps a copy of its league's overtime rules</td></tr>
+<tr><td><code>rink overtime [LEAGUE] [preset · setting=… · clear]</code></td><td>List every league's overtime rules, show one league's, or set or clear them ({{ref:overtime}})</td></tr>
 <tr><td><code>rink leagues</code> · <code>rink teams [LEAGUE]</code> · <code>rink roster TEAM</code> · <code>rink refs [LEAGUE|TEAM]</code></td><td>List leagues, teams, a roster, and every four-letter reference ({{ref:refs}})</td></tr>
 <tr><td><code>rink import PATH [--apply]</code> · <code>rink import formats</code> · <code>rink import examples</code></td><td>Preview or register a roster file; the columns and layouts read; the example files ({{ref:rosters}})</td></tr>
 <tr><td><code>rink addleague</code> · <code>rink addteam</code> · <code>rink addplayer</code></td><td>Register a league, a team or a player by hand</td></tr>

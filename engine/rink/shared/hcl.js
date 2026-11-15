@@ -5,7 +5,7 @@
  *   tri-token     TEAM_4 PLAYER_4 STAT[/mod[/mod…]]      FOCO SMIT G · FOCO J91 S/1W · KELW BARK P2/TRP · FOCO HALA ZE/C
  *   corrections   UNDO · DEL <seq> · FIX <seq> TEAM_4 PLAYER_4 STAT[/mods] · FIX #<seq> A1=19 A2=44 XY=78,-4 (HCL key=value form)
  *   lineup        LINE TEAM_4 P1 P2 … (up to 6)            replaces the team's on-ice skaters
- *   clock         T mm:ss [P1|P2|P3|OT|SO|OT2…OT9] · GO · STOP · NEXT · END (final) · CLOCK GO|STOP|NEXT|END|SET mm:ss [Pn]
+ *   clock         T mm:ss [P1|P2|P3|OT|SO|OT2…OT9] · START · GO · WHISTLE [mm:ss] · STOP · NEXT · END (final) · CLOCK GO|STOP|NEXT|END|WHISTLE [mm:ss]|SET mm:ss [Pn]
  *   queries       Q <TARGET> [args] [--key=value]          Q BOX · Q XG · Q RAPM --str=5v5 · Q HK001 FOCO
  *   session       GAME <key> · LOCALE en-CA|fr-CA · HELP · EXIT
  * STAT tokens are the spec's (G S M B A A1 A2 ZE ZX H TK GV FOW FOL P2 P4 P5 P10 P20 PS IN OUT) plus two
@@ -137,6 +137,13 @@
     if (!raw) return { kind: 'empty' };
     if (raw.length > 200) return err('line longer than 200 characters');
     const t = raw.split(/\s+/); const U = t.map((x) => x.toUpperCase());
+    // WHISTLE [mm:ss]: the whistle stops the clock; the time, if given, is what the official clock showed then
+    const whistle = (i) => {
+      if (t.length > i + 1) return err('usage: WHISTLE [mm:ss]   (the time on the official clock when the whistle went)', i + 1);
+      if (!t[i]) return { kind: 'clock', action: 'whistle', remainingDs: null, raw };
+      const ds = parseClock(t[i]); if (ds === null) return err('WHISTLE takes the clock time as mm:ss (00:00 to 20:00)', i);
+      return { kind: 'clock', action: 'whistle', remainingDs: ds, raw };
+    };
     switch (U[0]) {
       case 'UNDO': return t.length === 1 ? { kind: 'undo', raw } : err('UNDO takes no argument');
       case 'DEL': { const s = /^#?(\d{1,9})$/.exec(t[1] || ''); return s && t.length === 2 ? { kind: 'del', seq: Number(s[1]), raw } : err('usage: DEL <event seq>'); }
@@ -178,11 +185,13 @@
         return { kind: 'clock', action: 'set', remainingDs: ds, period, raw };
       }
       case 'START': case 'GO': case 'STOP': case 'NEXT': case 'END': return t.length === 1 ? { kind: 'clock', action: U[0].toLowerCase(), raw } : err(`${U[0]} takes no argument`);
+      case 'WHISTLE': return whistle(1);
       case 'CLOCK': {
         const a = U[1];
         if (a === 'START' || a === 'GO' || a === 'STOP' || a === 'NEXT' || a === 'END') return { kind: 'clock', action: a.toLowerCase(), raw };
+        if (a === 'WHISTLE') return whistle(2);
         if (a === 'SET') { const ds = parseClock(t[2]); if (ds === null) return err('usage: CLOCK SET mm:ss [Pn]', 2); const period = t[3] && Object.prototype.hasOwnProperty.call(PERIODS, U[3]) ? PERIODS[U[3]] : null; if (t[3] && !period) return err('bad period', 3); return { kind: 'clock', action: 'set', remainingDs: ds, period, raw }; }
-        return err('usage: CLOCK GO | STOP | NEXT | END | SET mm:ss [Pn]');
+        return err('usage: CLOCK GO | STOP | WHISTLE [mm:ss] | NEXT | END | SET mm:ss [Pn]');
       }
       case 'Q': {
         if (!t[1]) return err('usage: Q <TARGET> [args] [--key=value]  (Q HELP lists targets)');

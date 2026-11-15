@@ -64,7 +64,8 @@ const HELP = `${C.bold}RINK Virtual Terminal${C.reset} — one line, one fact.  
      stats  G S M B · A A1 A2 · FOW FOL (/O /D /N) · ZE ZX (/C /D /F) · H TK GV FC OMR · P2 P4 P5 P10 P20 PS · IN OUT
      shot   /1-9 zone · /W wrist /S slap /P snap /B backhand /T tip · /R rebound /U rush /X royal road · /x,y feet
   ${C.cyan}LINE TEAM P1 … P6${C.reset}          on-ice skaters (a goalie code sets the crease) — shift tracking for stints and RAPM
-  ${C.cyan}T 20:00 P1 · START · GO · STOP · NEXT · END${C.reset}   scoreboard clock: START is the game's start frame (the opening faceoff; the clock never runs before it), GO restarts it after a stoppage; events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in the playoffs)
+  ${C.cyan}T 20:00 P1 · START · GO · WHISTLE [mm:ss] · STOP · NEXT · END${C.reset}   scoreboard clock: START is the game's start frame (the opening faceoff; the clock never runs before it), GO restarts it after a stoppage, WHISTLE stops it at the whistle (WHISTLE 12:34 also sets it to the official clock's time; Esc in the workbench); events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in sudden-death playoffs)
+  ${C.cyan}rink overtime [LEAGUE] [preset | ot=5:00 skaters=3 shootout=3 playoff-ot=20:00 …]${C.reset}   a league's overtime rules: presets standard four-on-four international overtime-then-tie shootout-only ties; each new game keeps a copy
   ${C.cyan}UNDO · DEL n · FIX n TEAM PLAYER STAT[/mods] · FIX n A1=19 A2=44 XY=78,-4${C.reset}   corrections (appended, never overwritten)
   ${C.cyan}Q target${C.reset}                   SCORE BOX EVENTS XG STINTS PEN PLAYER STANDINGS LEADERS RAPM GSAX GAR NHLE HEAT LEDGER AUDIT ROSTER CODES HK001
   ${C.cyan}GAME key · LOCALE fr-CA${C.reset}     switch game · French tokens (B=but, T=tir, MG/MP mise en jeu …)
@@ -160,8 +161,8 @@ function leave(ctx, S) {
 const rinkCmd = {
   name: 'rink',
   summary: 'hockey statistics virtual terminal: score games, query the league, administer rosters',
-  usage: 'rink [GAME] | rink games | leagues | teams [LEAGUE] | roster TEAM | refs [LEAGUE|TEAM] | import PATH [--apply] | import formats | import examples [DIR] | new HOME AWAY [date] [stage] | addleague CODE "Name" ["Nom"] [ABBR] | addteam CODE "Name" ["Nom"] ["Arena"] [--league=CODE] [--city=…] | addplayer TEAM FIRST LAST JERSEY POS YYYY-MM-DD [L|R] [import] | sim [n] [seed] | ledger [verify] | note TEAM text | note del ID | notes [TEAM] | status | help',
-  complete: () => ['games', 'leagues', 'teams', 'roster', 'refs', 'import', 'new', 'addleague', 'addteam', 'addplayer', 'sim', 'ledger', 'note', 'notes', 'status', 'help'],
+  usage: 'rink [GAME] | rink games | leagues | teams [LEAGUE] | roster TEAM | refs [LEAGUE|TEAM] | import PATH [--apply] | import formats | import examples [DIR] | new HOME AWAY [date] [stage] | overtime [LEAGUE] [preset|key=value…|clear] | addleague CODE "Name" ["Nom"] [ABBR] | addteam CODE "Name" ["Nom"] ["Arena"] [--league=CODE] [--city=…] | addplayer TEAM FIRST LAST JERSEY POS YYYY-MM-DD [L|R] [import] | sim [n] [seed] | ledger [verify] | note TEAM text | note del ID | notes [TEAM] | status | help',
+  complete: () => ['games', 'leagues', 'teams', 'roster', 'refs', 'import', 'new', 'overtime', 'addleague', 'addteam', 'addplayer', 'sim', 'ledger', 'note', 'notes', 'status', 'help'],
   async run(ctx) {
     const S = st(ctx); const [sub, ...rest] = ctx.args; const w = ctx.cols || 100;
     try {
@@ -204,6 +205,22 @@ const rinkCmd = {
           const d = await call(ctx, 'addleague', { code: rest[0], name_en: rest[1], name_fr: rest[2], abbr: rest[3] });
           S.hello = null; ctx.stdout.write(`${paint('green', 'league')} ${d.league.code}  ${d.league.name_en}${d.league.abbr ? ' · ' + d.league.abbr : ''}\n`); return 0;
         }
+        case 'overtime': {
+          // rink overtime · rink overtime LEAGUE · rink overtime LEAGUE PRESET|key=value … · rink overtime LEAGUE clear
+          const d = await call(ctx, 'overtime', { league: rest[0], words: rest.slice(1) });
+          const presets = () => `${C.grey}presets  ${d.presets.map((p) => p.name).join(' · ')}   settings  ${d.settings.join(' ')}   clear (the built-in rules)${C.reset}\n` +
+            d.presets.map((p) => `${C.grey}  ${p.name.padEnd(18)} ${p.text}${C.reset}\n`).join('');
+          if (d.leagues) {
+            for (const l of d.leagues) ctx.stdout.write(`${paint('cyan', l.code)}  ${l.rules ? l.text : C.grey + l.text + C.reset}\n`);
+            if (!d.leagues.length) ctx.stdout.write(`${C.grey}no league yet — rink addleague CODE "Name", or rink import FILE; a game outside a league uses the ${d.builtIn}${C.reset}\n`);
+            ctx.stdout.write(presets()); return 0;
+          }
+          ctx.stdout.write(`${paint(d.changed ? 'green' : 'cyan', d.changed ? 'overtime set' : 'overtime')} ${d.code}  ${d.text}\n`);
+          if (d.changed) ctx.stdout.write(`${C.grey}games created from now on follow these rules · ${d.existing} existing game${d.existing === 1 ? ' keeps' : 's keep'} the rules ${d.existing === 1 ? 'it was' : 'they were'} created under${C.reset}\n`);
+          else if (rest.length > 1) ctx.stdout.write(`${C.grey}unchanged: ${d.code} already plays these rules${C.reset}\n`);
+          else ctx.stdout.write(presets());
+          return 0;
+        }
         case 'import': return await importRoster(ctx, rest, w);
         case 'roster': { const d = await call(ctx, 'q', { target: 'ROSTER', args: [rest[0] || ''] }); ctx.stdout.write(R().roster(d, { width: w }) + '\n'); return 0; }
         case 'new': {
@@ -211,6 +228,7 @@ const rinkCmd = {
           const d = await call(ctx, 'newgame', { home: rest[0], away: rest[1], date: rest[2], stage: rest[3] });
           await selectGame(ctx, d.game.key);
           ctx.stdout.write(`${paint('green', 'created')} ${d.game.key}  ${d.game.home} vs ${d.game.away}  ${d.game.date} ${d.game.stage}  ${C.grey}uuid ${d.game.uuid}${C.reset}\n${C.grey}start with: T 20:00 P1 · LINE … · ${d.game.start === 'frame' ? 'START at the opening faceoff (the clock waits for it)' : 'FOCO SMIT FOW · GO'}${C.reset}\n`);
+          if (S.sb && S.sb.overtime) ctx.stdout.write(`${C.grey}overtime: ${S.sb.overtime.text}${S.sb.overtime.league ? ` (${S.sb.overtime.league} rules)` : ' (built-in rules)'}${C.reset}\n`);
           return 0;
         }
         case 'addteam': {

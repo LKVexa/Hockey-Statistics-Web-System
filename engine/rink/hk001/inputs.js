@@ -95,7 +95,7 @@ add('RETAINED_ENTRIES', 'Controlled entries that kept possession', 'entries', 't
 add('FORECHECK_ATTEMPTS', 'Forecheck attempts', 'events', 'team', 'TRANSITION', 'TOKEN', ['FC'], 'FC by the team');
 add('TURNOVER_TRANSITIONS', 'Transitions ending in a turnover', 'events', 'team', 'TRANSITION', 'INFER', ['ZE', 'ZX', 'GV'], 'ZE/F + ZX/F + team GV within 5.0 s after a successful team ZE/ZX');
 add('ENTRY_SHOTS', 'Entries leading to a shot attempt', 'entries', 'team', 'TRANSITION', 'INFER', ['ZE', 'S', 'G', 'M'], 'successful team ZE followed within 10.0 s by a team attempt');
-add('POINTS', 'Standings points', 'points', 'team', 'STANDINGS', 'RESULT', [], '2 per win, 1 per overtime or shootout loss');
+add('POINTS', 'Standings points', 'points', 'team', 'STANDINGS', 'RESULT', [], '2 per win, 1 per overtime or shootout loss, 1 per tie');
 add('W', 'Wins', 'games', 'team', 'STANDINGS', 'RESULT', [], 'completed games won');
 add('RW', 'Regulation wins', 'games', 'team', 'STANDINGS', 'RESULT', [], 'wins decided in periods 1-3');
 add('PP_OPP', 'Power-play opportunities', 'opportunities', 'team', 'SPECIAL', 'STATE', ['P2', 'P4', 'P5'], 'opponent penalties that gave the team more skaters');

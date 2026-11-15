@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(ROOT, "tools"))
 from host import ENGINE, VERSION  # noqa: E402
 
 DOC_ID = "RVT-HG-001"
-REVISION = "1.1"
+REVISION = "1.2"
 ISSUED = datetime.date(2026, 11, 15)
 TITLE = "RINK-VT Workbench — Technical Handguide"
 REFERENCE = "2.5.0-rinkvt.1"

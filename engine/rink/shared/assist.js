@@ -12,7 +12,7 @@
   else root.RinkAssist = factory(root.RinkHcl);
 })(typeof self !== 'undefined' ? self : this, function (hcl) {
   'use strict';
-  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'START', 'GO', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
+  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'START', 'GO', 'WHISTLE', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
   const Q_TARGETS = ['SCORE', 'BOX', 'EVENTS', 'XG', 'STINTS', 'PEN', 'PLAYER', 'STANDINGS', 'LEADERS', 'RAPM', 'GSAX', 'GAR', 'WAR', 'NHLE', 'HEAT', 'LEDGER', 'AUDIT', 'ROSTER', 'CODES', 'HK001'];
   const STATS = Object.keys(hcl.STATS);
   const MODS = {
@@ -63,9 +63,9 @@
         for (let k = 2; k < parts.length - (endsSpace ? 0 : 1); k++) if (!playerOk(team, parts[k])) return out('error', [], '', `${parts[k]}: not on the ${team} roster`);
         return out(parts.length >= 3 && full.kind === 'line' ? 'ok' : 'incomplete', roster(team).map((p) => p.code).filter((c) => !parts.slice(2).map((x) => x.toUpperCase()).includes(c)), 'PLAYER_4');
       }
-      if (['DEL', 'FIX', 'T', 'GAME', 'LOCALE'].includes(w0)) {
+      if (['DEL', 'FIX', 'T', 'WHISTLE', 'GAME', 'LOCALE'].includes(w0)) {
         if (full.kind !== 'error') return out('ok', [], '');
-        if (idx === 1) return out('incomplete', w0 === 'T' ? ['20:00', '5:00'] : w0 === 'LOCALE' ? ['en-CA', 'fr-CA'] : [], w0 === 'T' ? 'mm:ss' : w0 === 'GAME' ? '<key>' : '<seq>', full.message);
+        if (idx === 1) return out('incomplete', w0 === 'T' ? ['20:00', '5:00'] : w0 === 'LOCALE' ? ['en-CA', 'fr-CA'] : [], w0 === 'T' || w0 === 'WHISTLE' ? 'mm:ss' : w0 === 'GAME' ? '<key>' : '<seq>', full.message);
         return { state: 'incomplete', ghost: '', candidates: [], hint: '', message: full.message, ast: full };
       }
       // tri-token TEAM PLAYER STAT[/mods]

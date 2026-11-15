@@ -151,7 +151,7 @@ class QueryEngine {
   }
   qEVENTS({ game, args, flags, caps }) {
     const c = this.scope({ game })[0]; const n = args[0] !== undefined ? count('EVENTS', args[0], 25, 1, 500) : count('--n', flags.n, 25, 1, 500);
-    const evs = c.actor.state.events.slice(-n).map((e) => ({ seq: e.seq, rev: e.rev, period: periodText(e.period, c.game.stage), clock: clockText(e.clockDs), elapsed: e.elapsed, team: e.team, code: e.code, name: e.name, stat: e.stat, mod: e.mod,
+    const evs = c.actor.state.events.slice(-n).map((e) => ({ seq: e.seq, rev: e.rev, period: periodText(e.period, c.game), clock: clockText(e.clockDs), elapsed: e.elapsed, team: e.team, code: e.code, name: e.name, stat: e.stat, mod: e.mod,
       x: e.x, y: e.y, coordSource: e.coordSource, xg: e.xg || null, xgF: e.xgF || null, danger: e.danger, rebound: e.rebound, rush: e.rush, strength: e.strength, situation: e.situation, assists: e.assists.filter(Boolean).map((pid) => (this.reg.player(pid) || {}).code), operator: caps.score ? e.operator : undefined, text: e.text, auto: e.auto ? `${e.opp} ${e.auto.code} ${e.auto.stat}` : null, penalty: e.penalty || null }));
     return { events: evs, total: c.actor.state.events.length, notes: c.actor.state.notes.slice(-10) };
   }
@@ -170,7 +170,7 @@ class QueryEngine {
   qSTINTS({ game, flags }) {
     const c = this.scope({ game })[0]; const n = count('--n', flags.n, 20, 1, 400);
     const code = (pid) => (this.reg.player(pid) || {}).code || '?';
-    const list = c.actor.liveStints().slice(-n).map((t) => ({ id: t.id, period: periodText(t.period, c.game.stage), start: t.startEl, end: t.endEl, dur: Math.round((t.endEl - t.startEl) * 10) / 10, strength: t.strength, zone: t.zoneStart, ppExpiry: t.ppExpiry, scoreDiff: t.homeScoreDiff,
+    const list = c.actor.liveStints().slice(-n).map((t) => ({ id: t.id, period: periodText(t.period, c.game), start: t.startEl, end: t.endEl, dur: Math.round((t.endEl - t.startEl) * 10) / 10, strength: t.strength, zone: t.zoneStart, ppExpiry: t.ppExpiry, scoreDiff: t.homeScoreDiff,
       home: t.homeSkaters.map(code), away: t.awaySkaters.map(code), homeCF: t.home.cf, awayCF: t.away.cf, homeXGF: r3(t.home.xgf), awayXGF: r3(t.away.xgf), live: !!t.live }));
     return { stints: list, total: c.actor.state.stints.length, home: c.game.home, away: c.game.away };
   }
@@ -183,12 +183,12 @@ class QueryEngine {
     const p = this.reg.resolvePlayer(t.toUpperCase(), tok); if (!p) throw new Error(`${safe(t, 4)} ${safe(tok, 6)}: no such player`);
     const pool = this.scope({ game, season: season || !game, team: p.team });
     const box = models.mergeBoxes(pool.map((c) => c.actor.state.players)); const b = box.get(p.pid);
-    const events = []; for (const c of pool) for (const e of c.actor.state.events) if (e.pid === p.pid || e.assists.includes(p.pid)) events.push({ game: c.game.key, seq: e.seq, period: periodText(e.period, c.game.stage), clock: clockText(e.clockDs), text: e.text, xg: e.xgF || null, assist: e.pid !== p.pid });
+    const events = []; for (const c of pool) for (const e of c.actor.state.events) if (e.pid === p.pid || e.assists.includes(p.pid)) events.push({ game: c.game.key, seq: e.seq, period: periodText(e.period, c.game), clock: clockText(e.clockDs), text: e.text, xg: e.xgF || null, assist: e.pid !== p.pid });
     return { player: Object.assign({}, p, { ageDays: this.reg.ageDays(p, new Date().toISOString().slice(0, 10)) }), line: b ? (p.pos === 'G' ? goalieRow(b, this.reg, models.CALIBRATION) : playerRow(b, this.reg)) : null, events: events.slice(-30), games: pool.length };
   }
   /* ---------------------------------------------------------------- scope */
   qSTANDINGS() {
-    const rows = new Map(); const row = (t) => rows.get(t) || rows.set(t, { team: t, gp: 0, w: 0, l: 0, otl: 0, pts: 0, gf: 0, ga: 0, rw: 0, xgf: 0, xga: 0, live: 0 }).get(t);
+    const rows = new Map(); const row = (t) => rows.get(t) || rows.set(t, { team: t, gp: 0, w: 0, l: 0, otl: 0, t: 0, pts: 0, gf: 0, ga: 0, rw: 0, xgf: 0, xga: 0, live: 0 }).get(t);
     for (const t of this.reg.teams()) row(t.code);
     for (const c of this.svc.allGames()) {
       const s = c.actor.state; if (!s.events.length) continue;
@@ -196,12 +196,12 @@ class QueryEngine {
         const f = teamGame(c.game, s, t), x = row(t);
         x.gf += f.G; x.ga += f.GA; x.xgf += f.xGF; x.xga += f.xGA;
         if (!s.result) { x.live++; continue; }
-        x.gp++; x.pts += f.POINTS; if (f.W) x.w++; else if (f.POINTS === 1) x.otl++; else x.l++; x.rw += f.RW;
+        x.gp++; x.pts += f.POINTS; if (f.W) x.w++; else if (s.result.decidedIn === 'TIE') x.t++; else if (f.POINTS === 1) x.otl++; else x.l++; x.rw += f.RW;
       }
     }
     const list = [...rows.values()].map((x) => Object.assign(x, { diff: x.gf - x.ga, xgf: r3(x.xgf), xga: r3(x.xga), ptsPct: x.gp ? r3(x.pts / (2 * x.gp)) : null }));
     list.sort((a, b) => b.pts - a.pts || b.rw - a.rw || b.diff - a.diff || a.team.localeCompare(b.team));
-    return { standings: list, rule: '2 points per win, 1 per overtime or shootout loss; ties broken by regulation wins, then goal differential' };
+    return { standings: list, rule: '2 points per win, 1 per overtime or shootout loss, 1 per tie; level teams are separated by regulation wins, then goal differential' };
   }
   qLEADERS({ flags }) {
     const pool = this.svc.allGames(); const box = models.mergeBoxes(pool.map((c) => c.actor.state.players));

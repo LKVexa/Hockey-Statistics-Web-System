@@ -168,7 +168,7 @@
     const first = v.trim().split(/\s+/)[0] || '';
     if (v.trim() && a && !(cmds.has(first) && !a.state.teams.includes(first.toUpperCase()))) { const r = a.analyze(v); st = r.state; g = r.ghost || ''; msg = r.state === 'error' ? r.message : r.state === 'incomplete' ? (r.hint ? 'next: ' + r.hint : '') + (r.candidates && r.candidates.length ? '  ' + r.candidates.slice(0, 8).join(' ') : '') : r.hint || ''; }
     else if (v.trim()) { const c = [...cmds.keys(), 'store', 'help', 'clear'].filter((k) => k.startsWith(first)); st = cmds.has(first) || ['help', 'clear', 'store'].includes(first) ? 'ok' : c.length ? 'incomplete' : 'error'; if (!/\s/.test(v) && c.length === 1) g = c[0].slice(first.length); msg = st === 'error' ? `${first}: not a command` : ''; }
-    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · START · GO · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
+    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · START · GO · WHISTLE (Esc) · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
     row.dataset.state = st; ghost.textContent = ''; const pad = document.createElement('span'); pad.textContent = v; const gi = document.createElement('i'); gi.textContent = g; ghost.append(pad, gi); hint.textContent = msg;
     return g;
   }
@@ -179,7 +179,18 @@
     else if (e.key === 'ArrowDown') { e.preventDefault(); if (hi < hist.length) { hi++; cmd.value = hist[hi] || ''; analyze(); } }
     else if (e.key === 'Tab') { e.preventDefault(); const a = assist(); const first = cmd.value.trim().split(/\s+/)[0] || ''; if (a && !cmds.has(first)) { cmd.value = a.complete(cmd.value).line; } else { const g = analyze(); if (g) cmd.value += g + ' '; } analyze(); }
     else if ((e.key === 'ArrowRight' || e.key === 'End') && cmd.selectionStart === cmd.value.length) { const g = analyze(); if (g) { e.preventDefault(); cmd.value += g; analyze(); } }
+    else if (e.key === 'Escape') { e.preventDefault(); if (!e.repeat) whistleKey(); }
   });
+  // Esc is the whistle: while the clock of the open game runs, one key stops it at the moment the key goes down,
+  // whatever is half-typed on the command line (the line is kept). With the clock stopped Esc changes nothing.
+  let whistling = false;
+  async function whistleKey() {
+    const S = session.rink; if (!session.mode || !svc || !S || !S.game || whistling) return;
+    let sb; try { sb = svc.ctx(S.game).actor.scoreboard(); } catch { return; }
+    if (sb.final || !sb.running) { hint.textContent = sb.final ? 'the game is final' : 'the clock is stopped · Esc stops it at the whistle while it runs · WHISTLE mm:ss sets the time the whistle went'; return; }
+    whistling = true; try { await exec('WHISTLE', wire.nowNs()); } finally { whistling = false; } cmd.focus(); analyze();
+  }
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && e.target !== cmd && !e.defaultPrevented && !e.repeat) { e.preventDefault(); whistleKey(); } });
   for (const b of document.querySelectorAll('#chips button:not([data-pick])')) b.addEventListener('click', async () => { const line = b.textContent; hist.push(line); hi = hist.length; await exec(line, wire.nowNs()); cmd.focus(); analyze(); });
   const picker = $('file');
   $('pick').addEventListener('click', () => picker.click());
@@ -222,7 +233,8 @@
     }
     if (tab === 'league' || !key) {
       const d = svc.handle(ME, 'q', { target: 'STANDINGS' });
-      pane.append(table([{ h: 'team' }, { h: 'GP', r: 1 }, { h: 'W', r: 1 }, { h: 'L', r: 1 }, { h: 'OTL', r: 1 }, { h: 'PTS', r: 1 }, { h: 'GF', r: 1 }, { h: 'GA', r: 1 }, { h: 'xGF', r: 1 }, { h: 'xGA', r: 1 }], d.standings.map((r) => [r.team, r.gp, r.w, r.l, r.otl, r.pts, r.gf, r.ga, f3(r.xgf), f3(r.xga)])));
+      const ties = d.standings.some((r) => r.t);
+      pane.append(table([{ h: 'team' }, { h: 'GP', r: 1 }, { h: 'W', r: 1 }, { h: 'L', r: 1 }, { h: 'OTL', r: 1 }, ...(ties ? [{ h: 'T', r: 1 }] : []), { h: 'PTS', r: 1 }, { h: 'GF', r: 1 }, { h: 'GA', r: 1 }, { h: 'xGF', r: 1 }, { h: 'xGA', r: 1 }], d.standings.map((r) => [r.team, r.gp, r.w, r.l, r.otl, ...(ties ? [r.t || 0] : []), r.pts, r.gf, r.ga, f3(r.xgf), f3(r.xga)])));
       return;
     }
     if (tab === 'box') {
@@ -243,7 +255,7 @@
     const el0 = Number((wire.nowNs() - BigInt(sb.refNs)) / 100000000n); const ds = sb.running ? Math.max(0, sb.remainingDs - el0) : sb.remainingDs;
     const clk = `${Math.floor(ds / 600)}:${String(Math.floor(ds / 10) % 60).padStart(2, '0')}`;
     box.append(el('span', null, sb.home), el('span', 'g', String(sb.score[sb.home])), el('span', 's', '–'), el('span', 'g', String(sb.score[sb.away])), el('span', null, sb.away),
-      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : '⏸'}  ${sb.strength}${sb.started ? '' : '  · not started: START at the opening faceoff'}`));
+      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : sb.whistleStop ? '⏸ whistle' : '⏸'}  ${sb.strength}${sb.started ? '' : '  · not started: START at the opening faceoff'}`));
     for (const p of sb.penalties) box.append(el('span', 'pen', `${p.team} ${p.code || ''} ${p.infraction || p.kind}`));
   }
   function refresh() {

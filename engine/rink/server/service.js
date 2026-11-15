@@ -31,6 +31,7 @@ const { Driver } = require('./driver');
 const { RosterImporter } = require('./importer');
 const wire = require('../shared/wire');
 const codes = require('../shared/codes');
+const OT = require('./overtime');
 
 const VERSION = 'rink-vt/1.3';
 const META_MAGIC = 0x31544d43;            // "CMT1"
@@ -270,6 +271,25 @@ class RinkService extends EventEmitter {
       case 'teams': { need('query'); const lg = upper(args.league); if (lg && !this.registry.league(lg)) throw new RinkError('NOT_FOUND', `no league ${lg}`); const all = this.registry.teams().filter((t) => !lg || t.league === lg); const page = intArg(args.page, 1, 1, 1000); return { teams: all.slice((page - 1) * PAGE, page * PAGE), total: all.length, page, league: lg || null }; }
       case 'leagues': { need('query'); const n = new Map(); for (const t of this.registry.teams()) if (t.league) n.set(t.league, (n.get(t.league) || 0) + 1); return { leagues: this.registry.leagues().map((l) => Object.assign({}, l, { teams: n.get(l.code) || 0 })), unassigned: this.registry.teams().filter((t) => !t.league).length }; }
       case 'addleague': { need('admin'); const l = asRequest(() => this.registry.addLeague(args)); this.epoch++; return { league: l }; }
+      case 'overtime': {                      // a league's overtime rules: read them, or set or clear them (admin)
+        const words = Array.isArray(args.words) ? args.words.slice(0, 16).map((w) => str(w, 40)).filter(Boolean) : [];
+        const builtIn = 'built-in: regular season 5:00 3-on-3 overtime, then a shootout of 3 rounds · preseason, playoffs and championship 20:00 5-on-5 sudden-death periods';
+        const presets = Object.keys(OT.PRESETS).map((name) => ({ name, text: OT.PRESETS[name].text }));
+        const settings = Object.keys(OT.KEYS).map((k) => k + '=');
+        const row = (l) => ({ code: l.code, name: l.name_en, rules: l.overtime || null, text: l.overtime ? OT.describe(l.overtime) : builtIn });
+        const lg = upper(args.league);
+        if (!lg) { need('query'); return { leagues: this.registry.leagues().map(row), builtIn, presets, settings }; }
+        const l = this.registry.league(lg); if (!l) throw new RinkError('NOT_FOUND', `no league ${lg}`);
+        let changed = false;
+        if (words.length) {
+          need('admin');
+          const clear = words.length === 1 && /^(clear|built-in)$/i.test(words[0]);
+          changed = asRequest(() => this.registry.setOvertime(l.code, clear ? null : OT.apply(l.overtime || OT.PRESETS.standard, words)));
+          if (changed) this.epoch++;
+        } else need('query');
+        const existing = this.registry.games().filter((g) => { const o = this.registry.overtimeLeague(g.home, g.away); return !!o && o.code === l.code; }).length;
+        return Object.assign(row(l), { changed, existing, builtIn, presets, settings });
+      }
       case 'refs': {                        // every four-letter reference: leagues and their teams, or one team's players
         need('query'); const of = upper(args.of); const page = intArg(args.page, 1, 1, 1000);
         const teamRow = (t) => ({ code: t.code, name: t.name_en, league: t.league || '', city: t.city || '', players: this.registry.roster(t.code).length });

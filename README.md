@@ -1,6 +1,6 @@
 # RINK-VT Workbench — LK/Vexa edition
 
-**2.5.0-lkvexa.2 · Photon-hosted · no Node.js · GPL-3.0-only**
+**2.5.0-lkvexa.3 · Photon-hosted · no Node.js · GPL-3.0-only**
 
 RINK-VT is a hockey statistics workbench. A scorer types one fact per line in a scorer's language —
 `FOCO SMIT G/2P` — and the line becomes one or more 64-byte frames that an event-sourced game actor applies. Box
@@ -39,7 +39,7 @@ research laboratory; it gives no forecasts, odds, or roster, medical, scouting o
 The host prints what it did and the address it serves, then opens the workbench:
 
 ```
-RINK-VT 2.5.0-lkvexa.2 · LK/Vexa edition (Photon-hosted)
+RINK-VT 2.5.0-lkvexa.3 · LK/Vexa edition (Photon-hosted)
   loopback 127.26.220.77 · static for this laptop (device 786ccb4a)
   workbench  http://127.20.66.113:8800/
   league     C:\RINK-VT\runtime (0 games)
@@ -58,6 +58,8 @@ FOCO SMIT FOW/N
 FOCO GOUL S/1W               a shot: xG, danger class, the latched clock
 FOCO SMIT G/2P               a goal
 FOCO HALA A                  the primary assist, chained to the open goal
+WHISTLE                      the whistle: the clock stops (Esc does the same; WHISTLE 12:34 also sets the official time)
+FOCO SMIT FOW/N · GO         the faceoff, and the clock runs again
 Q BOX · Q XG · Q AUDIT       queries; HELP lists the language
 EXIT
 rink sim 4                   four synthetic games typed through the same command path
@@ -68,6 +70,33 @@ store verify                 every seal and chain of the league, re-read from di
 **A new game's clock waits for START.** Creating a game, setting the clock, lineups and the first faceoff never start
 it; `START` — the game's start frame, recorded in the ledger — does, and `GO` is refused until then. `GO` restarts the
 clock after a stoppage or a period break.
+
+**`WHISTLE` stops the clock when the whistle goes.** It is one key in the workbench — **Esc** — while the clock runs,
+whatever is half-typed on the command line, and a `WHISTLE` chip. The official clock is the authority: `WHISTLE 12:34`
+stops the clock and sets it to the time the official clock showed at the whistle, taking back the moment between the
+whistle and the keystroke; typed after a whistle has already stopped the clock, it sets that whistle's time. Each
+whistle is a frame in the ledger and is counted on the scoreboard. `STOP` still stops the clock without a whistle.
+
+**Overtime follows the league's rules.** `rink overtime` lists every league's rules; `rink overtime LEAGUE PRESET`
+sets them, and `key=value` settings adjust them:
+
+```
+rink overtime MTNL standard            5:00 3-on-3, a shootout of 3 · playoffs 20:00 5-on-5 sudden death (the built-in rules)
+rink overtime MTNL four-on-four        5:00 4-on-4, a shootout of 3
+rink overtime MTNL international       5:00 3-on-3, a shootout of 5 · playoffs 10:00 3-on-3, a shootout of 5
+rink overtime MTNL overtime-then-tie   5:00 3-on-3, then a tie stands
+rink overtime MTNL shootout-only       no overtime, a shootout of 3
+rink overtime MTNL ties                no overtime, a tie stands
+rink overtime MTNL ot=10:00 skaters=4 shootout=5 playoff-ot=20:00 playoff-skaters=5 playoff-shootout=0
+rink overtime MTNL clear               back to the built-in rules
+```
+
+The regular block decides regular-season and preseason games, the playoff block playoff and championship games (a
+playoff block without a shootout plays sudden-death periods up to OT9). `NEXT`, `T … OT`, the shootout and the
+overtime strength follow the rules: with no overtime `NEXT` goes from P3 straight to the shootout; where a tie stands
+`NEXT` at the end ends the game tied, and the standings give each side a point and a **T** column. A game keeps a copy
+of its league's rules from its creation, so a change applies to the games created after it and every recorded game
+replays exactly as it was played; a game outside any league plays the built-in rules.
 
 **Each line is recorded before its result is shown.** After a command changes the league, the window sends the
 host what changed and waits until the host has synced it to disk. If the host refuses (another window changed the

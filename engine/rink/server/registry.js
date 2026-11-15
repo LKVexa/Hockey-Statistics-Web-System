@@ -19,6 +19,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const hash = require('../shared/hash');
 const codes = require('../shared/codes');
+const OT = require('./overtime');
 
 const POS = new Set(['C', 'LW', 'RW', 'D', 'G']);
 const STAGES = new Set(['PRESEASON', 'REGULAR', 'PLAYOFF', 'CHAMPIONSHIP']);
@@ -101,6 +102,9 @@ class Registry {
     for (const k of ['teams', 'players', 'games', 'notes']) if (!Array.isArray(data[k])) throw new Error(`registry.json: "${k}" must be a list`);
     if (data.leagues === undefined) data.leagues = [];                 // a registry written before 2.3 has no leagues
     if (!Array.isArray(data.leagues)) throw new Error('registry.json: "leagues" must be a list');
+    // overtime rules (2.5.0-lkvexa.3): a league's, and the copy each game keeps, must be rules this build can play
+    for (const l of data.leagues) if (l && l.overtime !== undefined) { try { OT.normalize(l.overtime); } catch (e) { throw new Error(`registry.json: league ${String(l.code).replace(CTRL, '').slice(0, 8)}: ${e.message}`); } }
+    for (const g of data.games) if (g && g.ot !== undefined) { try { OT.normalize(g.ot); } catch (e) { throw new Error(`registry.json: game ${String(g.key).replace(CTRL, '').slice(0, 24)}: ${e.message}`); } }
     if (!data.seq || typeof data.seq !== 'object') data.seq = {};
     data.seq.game = Math.max(Number(data.seq.game) || 0, data.games.length); data.seq.note = Math.max(Number(data.seq.note) || 0, ...data.notes.map((n) => Number(n.id) || 0), 0);
     this.data = data; this._index(); return this;
@@ -170,6 +174,25 @@ class Registry {
     return changed;
   }
   league(code) { return typeof code === 'string' ? this.leaguesBy.get(code.toUpperCase()) || null : null; }
+  /**
+   * Set a league's overtime rules (a rule set, overtime.js), or clear them (null): its games then use the built-in
+   * rules. Only games created afterwards follow the change; each game keeps the rules it was created under.
+   * Returns whether anything changed.
+   */
+  setOvertime(code, rules) {
+    const l = this.league(code); if (!l) throw new Error('unknown league');
+    const next = rules === null ? undefined : OT.normalize(rules);
+    if (JSON.stringify(next) === JSON.stringify(l.overtime)) return false;
+    this._was(l, 'overtime');
+    if (next === undefined) delete l.overtime; else l.overtime = next;
+    this._commit(); return true;
+  }
+  /** The league whose overtime rules decide a game between these teams: the home team's, else the away team's. */
+  overtimeLeague(home, away) {
+    const ht = this.teamsBy.get(home), at = this.teamsBy.get(away);
+    const code = ht && ht.league ? ht.league : at && at.league ? at.league : null;
+    return code ? this.leaguesBy.get(code) || null : null;
+  }
   leagues() { return this.data.leagues.slice(); }
   /* ---------- teams ---------- */
   _teamFields(o) {
@@ -301,6 +324,10 @@ class Registry {
     }
     const game = { key, uuid, idHash, home, away, date, stage, season, starters: st, createdAt: new Date().toISOString() };
     if (start === 'frame') game.start = 'frame';           // the clock runs only after the game's start frame (START)
+    // the league's overtime rules, copied: the game is decided by the rules it was created under, whatever the
+    // league changes later (a game without them keeps the built-in rules)
+    const lg = this.overtimeLeague(home, away);
+    if (lg && lg.overtime) game.ot = Object.assign({ league: lg.code }, JSON.parse(JSON.stringify(OT.normalize(lg.overtime))));
     this.data.games.push(game); this._index(); this.save(); return game;
   }
   game(key) { return typeof key === 'string' ? this.gamesBy.get(key) || null : null; }

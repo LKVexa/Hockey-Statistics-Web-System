@@ -19,7 +19,7 @@ from host import VERSION  # noqa: E402
 
 MODULES = [
     "rink/shared/codes.js", "rink/shared/hcl.js", "rink/shared/wire.js", "rink/shared/xg.js", "rink/shared/fmt.js", "rink/shared/assist.js", "rink/shared/hash.js",
-    "rink/server/registry.js", "rink/server/demo.js", "rink/server/actor.js", "rink/server/driver.js", "rink/server/derive.js", "rink/server/models.js", "rink/server/heat.js",
+    "rink/server/overtime.js", "rink/server/registry.js", "rink/server/demo.js", "rink/server/actor.js", "rink/server/driver.js", "rink/server/derive.js", "rink/server/models.js", "rink/server/heat.js",
     "rink/server/ssdram.js", "rink/server/query.js", "rink/server/hkbridge.js", "rink/server/sim.js", "rink/server/roster-file.js", "rink/server/roster-plan.js",
     "rink/server/importer.js", "rink/server/service.js", "rink/server/inproc.js",
     "rink/hk001/gomath.js", "rink/hk001/engine.js", "rink/hk001/adapter.js", "rink/hk001/inputs.js", "rink/hk001/catalog.js", "rink/hk001/lab.js",

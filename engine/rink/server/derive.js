@@ -21,7 +21,7 @@ function withScore(events, home, away) {
 }
 const scoreDiff = (row, team, home) => (team === home ? row.h - row.a : row.a - row.h);
 
-function gameElapsed(game, s) { return elapsedOf(game.stage, s.clock.period, s.clock.remainingDs); }
+function gameElapsed(game, s) { return elapsedOf(game, s.clock.period, s.clock.remainingDs); }
 
 /**
  * Facts for team T in one game. Counts are plain numbers; `seen` records which token families occurred at all
@@ -130,6 +130,7 @@ function teamGame(game, s, T, opts = {}) {
   }
   // result
   const r = s.result;
+  if (r && r.decidedIn === 'TIE') f.POINTS = 1;            // a tie stands (the league's overtime rules, or END while level): a point each
   if (r && r.decidedIn !== 'TIE') {
     const won = r.winner === T;
     if (won) { f.W = 1; f.POINTS = 2; if (r.decidedIn === 'REG') f.RW = 1; if (r.decidedIn === 'OT') f.OT_WINS = 1; if (r.decidedIn === 'SO') f.SO_WINS = 1; if (r.comeback) f.COMEBACK_WINS = 1; if (r.margin === 1) f.ONE_GOAL_WINS = 1; }
