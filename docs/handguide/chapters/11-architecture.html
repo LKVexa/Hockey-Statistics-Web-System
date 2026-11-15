@@ -40,7 +40,8 @@
 <tr><td><code>photon/host/__init__.py</code></td><td>Product, edition and version constants</td></tr>
 <tr><td><code>photon/host/server.py</code></td><td>The HTTP server: guards, routes, headers, the page ({{ref:api}})</td></tr>
 <tr><td><code>photon/host/store.py</code></td><td>The league store: registry, game ledgers, event ledger, commits, verification ({{ref:formats}})</td></tr>
-<tr><td><code>photon/host/loopback.py</code></td><td>Canonical keys, pools, slots, the lease table and its lock ({{ref:loopback}})</td></tr>
+<tr><td><code>photon/host/device.py</code></td><td>This laptop's identity: the machine identifier, the device key, the device file and the pin ({{ref:device-identity}})</td></tr>
+<tr><td><code>photon/host/loopback.py</code></td><td>Keys, pools, slots, pins, the lease table, its formats and its lock ({{ref:loopback}})</td></tr>
 <tr><td><code>photon/host/integrity.py</code></td><td>The release manifest and its two scopes ({{ref:manifest}})</td></tr>
 <tr><td><code>photon/host/renderer.py</code></td><td>Finding and opening the renderer window ({{ref:renderer}})</td></tr>
 <tr><td><code>photon/host/crc32c.py</code> · <code>strictjson.py</code></td><td>CRC-32C as the engine computes it; the strict JSON reader every request and stored document goes through</td></tr>
@@ -52,14 +53,14 @@
 <tr><td><code>engine/rink/hk001/</code></td><td>The HK001 port: Go-exact mathematics, the engine, input adapter, inputs, catalog, lab; its third-party notices</td></tr>
 <tr><td><code>engine/src/main/spiral/</code></td><td>The command registry and the command pack (<code>rink</code>, <code>q</code>, <code>hk001</code>, <code>case</code>, <code>corpus</code>, <code>tokens</code> and the code commands)</td></tr>
 <tr><td><code>engine/rink/term/</code> · <code>engine/rink/web/</code></td><td>Terminal rendering of answers; the rink drawing</td></tr>
-<tr><td><code>tools/</code></td><td><code>bundle.py</code>, <code>seal_release.py</code>, <code>contracts.py</code>, <code>leases.py</code>, <code>verify.py</code></td></tr>
+<tr><td><code>tools/</code></td><td><code>bundle.py</code>, <code>seal_release.py</code>, <code>contracts.py</code>, <code>leases.py</code> (a laptop's identity, lease tables, fleet enrolment), <code>verify.py</code></td></tr>
 <tr><td><code>contracts/</code> · <code>tests/</code> · <code>docs/</code></td><td>MSSL records and JA21 sources; the test suite; this guide and its sources</td></tr>
 </tbody>
 </table>
 
 <h2 key="bundle">The renderer bundle</h2>
 <p>The engine is a set of CommonJS modules written for Node.js. <code>tools/bundle.py</code> places each module's source text, unchanged, in a function of a module table, and each data table (the Mathematical Corpus, the HTML5 entity table, the Go tables) in a data table, inside the loader. The loader resolves <code>require</code> as Node.js does for relative paths and provides the few built-ins the modules name: <code>path</code>, <code>events</code>, <code>os</code>, <code>process</code>, <code>Buffer</code> (on <code>Uint8Array</code>) and <code>crypto</code> hashing (SHA-1 and SHA-256 from the engine's own <code>rink/shared/hash.js</code>). It provides no file system: a module that would read a file is told that the renderer has none and that the host keeps the league. The bundle is <code>ui/workbench.js</code>: the loader with the engine, then the rink drawing, then <code>ui/app.js</code>. <code>bundle.py --check</code> rebuilds it in memory and compares, so a stale bundle is found by the verifier.</p>
-<p>The engine's service takes three options that let a host keep the league outside it, added in the reference edition for this edition: <code>registryData</code>, a league to start from; <code>preload</code>, a function giving each game's stored ledger entries when the game opens; and <code>store</code>, a description of where the host keeps the league, which the service then reports as durable. With them the engine runs in memory and replays what the host stored, exactly as the reference edition replays its own ledgers.</p>
+<p>The engine's service takes four options a host uses — the first three added in the reference edition for this edition, the fourth in this release: <code>registryData</code>, a league to start from; <code>preload</code>, a function giving each game's stored ledger entries when the game opens; and <code>store</code>, a description of where the host keeps the league, which the service then reports as durable. With them the engine runs in memory and replays what the host stored, exactly as the reference edition replays its own ledgers.</p>
 <h3 key="engine-options">Host options of the engine</h3>
 <table class="t" caption="The service options a host uses">
 <colgroup><col style="width:22%"><col style="width:78%"></colgroup>
@@ -68,6 +69,7 @@
 <tr><td><code>registryData</code></td><td>The parsed registry the host sent; the service adopts it instead of seeding the demonstration clubs</td></tr>
 <tr><td><code>preload(game)</code></td><td>Returns the game's stored entries, frame and meta line by turn, which the actor replays when the game opens</td></tr>
 <tr><td><code>store</code></td><td>"Photon host · sealed registry and hash-chained ledgers on this computer": shown in the RINK banner and <code>rink status</code> as the ledger's durability</td></tr>
+<tr><td><code>startRule</code></td><td><code>frame</code>: every game created in the window, by <code>rink new</code> or <code>rink sim</code>, is under the start-frame rule ({{ref:clock}})</td></tr>
 </tbody>
 </table>
 

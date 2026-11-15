@@ -5,6 +5,8 @@ policy no_network
 
 const frame_bytes: Count = 64
 const meta_magic: Count = 827608387
+const clock_start_byte: Count = 66
+enum ClockAction { Set, Start, Go, Stop, Next, End }
 record Frame { uuid: Bytes, onset_ns: Count, commit_ns: Count, game_hash: Bytes, lamport: Count, team: Text, player: Text, stat: Text, modifier: Bytes, location: Bytes, crc: Count }
 record MetaLine { magic: Count, recorded_by: Bytes, loopback: Bytes, crc: Count }
 record LedgerPair { frame: Bytes, meta: Bytes }
@@ -24,6 +26,14 @@ function check_pair(pair: LedgerPair, game_uuid: Bytes) -> PairCheck effects { p
         _ => PairCheck.Accepted,
     }
 }
+function clock_may_run(action: ClockAction, started: Bool, start_rule: Bool) -> Bool effects { pure } {
+    match action {
+        ClockAction.Start => started == false,
+        ClockAction.Go => started || start_rule == false,
+        _ => true,
+    }
+}
 let check_value: Count = Crc32c.of(Bytes.text("123456789"))
+assert clock_may_run(ClockAction.Go, false, true) == false
 assert Crc32c.of(Bytes.text("123456789")) == 3808858755
 emit json check_value

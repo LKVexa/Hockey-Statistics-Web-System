@@ -12,7 +12,7 @@
   else root.RinkAssist = factory(root.RinkHcl);
 })(typeof self !== 'undefined' ? self : this, function (hcl) {
   'use strict';
-  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'GO', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
+  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'START', 'GO', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
   const Q_TARGETS = ['SCORE', 'BOX', 'EVENTS', 'XG', 'STINTS', 'PEN', 'PLAYER', 'STANDINGS', 'LEADERS', 'RAPM', 'GSAX', 'GAR', 'WAR', 'NHLE', 'HEAT', 'LEDGER', 'AUDIT', 'ROSTER', 'CODES', 'HK001'];
   const STATS = Object.keys(hcl.STATS);
   const MODS = {
@@ -55,7 +55,7 @@
         if (full.kind === 'query') for (const k of Object.keys(full.flags)) if (!takes.includes(k) && !(idx === parts.length - 1 && cur.startsWith('--') && !cur.includes('=') && takes.some((f) => f.startsWith(k)))) return out('error', [], '', `${full.target} does not take --${k}${takes.length ? ` (it takes ${takes.map((f) => '--' + f).join(' ')})` : ''}`);
         return out(full.kind === 'query' ? 'ok' : 'incomplete', takes.map((f) => (hcl.Q_SWITCHES.includes(f) ? '--' + f : f === 'str' ? '--str=5v5' : `--${f}=`)), '');
       }
-      if (['UNDO', 'GO', 'STOP', 'NEXT', 'END', 'HELP', 'EXIT'].includes(w0) && idx === 0) return out(full.kind === 'error' ? 'incomplete' : 'ok', KEYWORDS, '');
+      if (['UNDO', 'START', 'GO', 'STOP', 'NEXT', 'END', 'HELP', 'EXIT'].includes(w0) && idx === 0) return out(full.kind === 'error' ? 'incomplete' : 'ok', KEYWORDS, '');
       if (w0 === 'LINE') {
         if (idx === 1) return out('incomplete', teamsFirst(), 'TEAM_4');
         const team = (parts[1] || '').toUpperCase();

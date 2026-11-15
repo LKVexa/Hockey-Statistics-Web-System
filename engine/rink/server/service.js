@@ -101,10 +101,11 @@ class RinkService extends EventEmitter {
    * @param {number} [o.maxSkewMs=5000]    how far ahead of the server clock a frame's commit time may be
    * @param {object} [o.registryData]      memory only: a league to start from (the parsed registry.json of a store)
    * @param {(game:object)=>Uint8Array[]} [o.preload]  memory only: the stored ledger entries of a game, replayed when it opens
+   * @param {string} [o.startRule]         'frame': games created here are under the start-frame rule (GO refused until START)
    * @param {string} [o.store]             memory only: where the host that runs this service keeps the league durably;
    *                                       the service then reports its ledger as durable, in these words
    */
-  constructor({ dir = null, seed = true, log = null, cachePages = 16, logLines = 64, maxGames = 1000, maxFrames = 20000, maxSkewMs = 5000, importDirs = [], importMaxBytes = 4 * 1024 * 1024, registryData = null, preload = null, store = null } = {}) {
+  constructor({ dir = null, seed = true, log = null, cachePages = 16, logLines = 64, maxGames = 1000, maxFrames = 20000, maxSkewMs = 5000, importDirs = [], importMaxBytes = 4 * 1024 * 1024, registryData = null, preload = null, store = null, startRule = null } = {}) {
     super();
     this.setMaxListeners(0);              // one listener per terminal session and feed; they are capped elsewhere
     this.dir = dir; this.seed = seed; this.log = log || { info() {}, warn() {}, error() {} };
@@ -112,6 +113,7 @@ class RinkService extends EventEmitter {
     // hands it the league it stored: the registry here, each game's ledger entries when the game opens.
     if ((registryData || preload || store) && dir) throw new Error('registryData, preload and store are for a service in memory (no dir)');
     this.store = store ? String(store) : null;
+    this.startRule = startRule === 'frame' ? 'frame' : null;   // games created here start only with START
     this.registryData = registryData; this.preload = typeof preload === 'function' ? preload : null;
     this.ledgerOpts = { cachePages, logLines };
     this.maxGames = maxGames; this.maxFrames = maxFrames; this.maxSkewNs = BigInt(Math.max(0, Math.round(maxSkewMs))) * 1000000n;
@@ -288,7 +290,7 @@ class RinkService extends EventEmitter {
         if (this.closed) throw new RinkError('UNAVAILABLE', 'the RINK service is shutting down');
         const club = this.clubOf(p); const home = upper(args.home), away = upper(args.away);
         if (club && home !== club && away !== club && !caps.admin) throw new RinkError('FORBIDDEN', `tenant ${club} can create only its own games`);
-        const g = asRequest(() => this.registry.newGame({ home, away, date: args.date === undefined || args.date === null ? undefined : args.date, stage: args.stage === undefined || args.stage === null ? undefined : args.stage, starters: args.starters }));
+        const g = asRequest(() => this.registry.newGame({ home, away, date: args.date === undefined || args.date === null ? undefined : args.date, stage: args.stage === undefined || args.stage === null ? undefined : args.stage, starters: args.starters, start: this.startRule || undefined }));
         this.ctx(g.key); this.epoch++; this.emit('games', { games: this._gameList(), total: this.registry.games().length });
         return { game: g };
       }
@@ -361,7 +363,7 @@ class RinkService extends EventEmitter {
       for (let i = 0; i < n && !this.closed; i++) {
         const [home, away] = sched[(this.registry.games().length + i) % sched.length];
         const d = date ? new Date(Date.parse(date + 'T00:00:00Z') + i * 86400000) : new Date(Date.now() - (n - i) * 86400000);
-        const g = asRequest(() => this.registry.newGame({ home, away, date: d.toISOString().slice(0, 10), stage }));
+        const g = asRequest(() => this.registry.newGame({ home, away, date: d.toISOString().slice(0, 10), stage, start: this.startRule || undefined }));
         const c = this.ctx(g.key); const drv = new Driver({ operator: 'simulator', source: 'sim' });
         const r = simulateGame({ game: g, registry: this.registry, seed: (seed + i * 7919) >>> 0, startNs: start, state: () => c.actor.state,
           type: (line, onset) => { drv.at(onset); const { ast, frames } = drv.frames(line, g); if (!frames.length) return { ast, results: [] }; return this.submit(sim, g.key, frames, { source: 'sim', flush: false }); } });

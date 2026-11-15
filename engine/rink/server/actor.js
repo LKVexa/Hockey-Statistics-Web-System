@@ -52,6 +52,7 @@ function freshState(game) {
   return {
     game, version: 0,
     clock: { period: 1, remainingDs: P_LEN * 10, running: false, refNs: 0n, final: false },
+    started: null,                                    // the start frame: { atNs, period, remainingDs }; null before the game starts
     clockHistory: [],                                 // [{ atNs, period, remainingDs, running }]
     teams: { [H]: team(), [A]: team() },
     onIce: { [H]: new Set(), [A]: new Set() }, goalie: { [H]: game.starters && game.starters[H] || null, [A]: game.starters && game.starters[A] || null },
@@ -275,7 +276,7 @@ class GameActor {
     const h = s.clockHistory; const last = h.length ? h[h.length - 1] : null;
     let at = entry.f.commitNs; if (at < s.lastNs) at = s.lastNs; if (last && at < last.atNs) at = last.atNs;
     const now = this._clockAt(s, at); const c = s.clock; const stage = this.game.stage;
-    if (!['set', 'go', 'stop', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
+    if (!['set', 'start', 'go', 'stop', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
     if (s.result && f.action !== 'set') return pure('the game is final');
     let period = now.period, rem = now.remainingDs, running = last ? last.running : false;
     if (f.action === 'set') {
@@ -291,6 +292,14 @@ class GameActor {
       this._finalize(s, period <= 3 ? 'REG' : stage === 'REGULAR' && period === 5 ? 'SO' : 'OT');
       return { status: 'APPLIED', clock: 'FINAL', result: s.result };
     }
+    // The start frame (START) is the opening faceoff: the clock never runs before it. In a game created under the
+    // start-frame rule (game.start === 'frame') GO is refused until START; in a game of an earlier build the first GO
+    // starts the game, as it always did, so its ledger replays unchanged.
+    if (f.action === 'start') {
+      if (s.started) return pure(`the game started at ${periodText(s.started.period, stage)} ${clockText(s.started.remainingDs)}; GO restarts the clock after a stoppage`);
+      if (rem <= 0) return pure('the period clock is at 0:00; use T mm:ss first');
+      running = true;
+    } else if (f.action === 'go' && !s.started && this.game.start === 'frame') return pure('the game has not started: type START at the opening faceoff');
     if (f.action === 'go') { if (rem <= 0) return pure('the period clock is at 0:00; use NEXT or T mm:ss'); running = true; }
     else if (f.action === 'stop') { running = false; s.stoppage = true; }
     else if (f.action === 'set') { rem = f.remainingDs; if (f.period) period = f.period; if (rem > periodLength(stage, period) * 10) rem = periodLength(stage, period) * 10; }
@@ -310,8 +319,9 @@ class GameActor {
     else if (changedPeriod) this._advance(s, el);     // the earlier period is over: penalties run to its end, and nothing typed late may land before this point
     h.push({ atNs: at, period, remainingDs: rem, running });
     Object.assign(c, { period, remainingDs: rem, running, refNs: at });
+    if (!s.started && (f.action === 'start' || f.action === 'go')) s.started = { atNs: at, period, remainingDs: rem };
     if ((changedPeriod && !(period === 5 && stage === 'REGULAR')) || (back && !(stage === 'REGULAR' && period >= 5))) this._rotate(s, el, changedPeriod ? 'NEU' : 'OTF');
-    return { status: 'APPLIED', clock: `${periodText(period, stage)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}` };
+    return { status: 'APPLIED', clock: `${periodText(period, stage)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}${f.action === 'start' ? ' · game started' : ''}` };
   }
   _decidedAtPeriodEnd(s, period) { const H = this.game.home, A = this.game.away; return period >= 3 && period !== 5 && s.teams[H].score !== s.teams[A].score; }
   _checkFinal(s) {
@@ -677,6 +687,7 @@ class GameActor {
     const pens = s.penalties.filter((p) => p.active && !p.done && p.strength).map((p) => ({ id: p.id, team: p.team, code: (this.registry.player(p.pid) || {}).code, kind: p.kind, infraction: p.infraction, endEl: p.endEl, startEl: p.startEl }));
     return { key: g.key, home: H, away: A, score: { [H]: s.teams[H].score, [A]: s.teams[A].score }, shootout: { [H]: s.teams[H].soGoals, [A]: s.teams[A].soGoals },
       period: c.period, periodText: periodText(c.period, g.stage), remainingDs: c.remainingDs, running: c.running, refNs: c.refNs.toString(), periodLength: periodLength(g.stage, c.period),
+      started: !!this.s.started, startRule: g.start === 'frame' ? 'frame' : null,
       strength: this.strength(s, H), situation: { [H]: this.situation(s, H), [A]: this.situation(s, A) }, penalties: pens, final: s.result, events: s.events.length, ledger: this.ledger.length, version: this.version,
       goalies: { [H]: s.goalie[H] ? (this.registry.player(s.goalie[H]) || {}).code : null, [A]: s.goalie[A] ? (this.registry.player(s.goalie[A]) || {}).code : null },
       onIce: { [H]: [...s.onIce[H]].map((pid) => (this.registry.player(pid) || {}).code), [A]: [...s.onIce[A]].map((pid) => (this.registry.player(pid) || {}).code) } };

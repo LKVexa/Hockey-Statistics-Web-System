@@ -4,7 +4,9 @@
 <h2>Platforms</h2>
 <ul>
 <li>The release is qualified on the platform its qualification record names ({{q_platform}}). The launchers for Windows (<code>START_RINKVT.cmd</code>, <code>VERIFY_RINKVT.cmd</code>) and the behaviour on macOS are written for those systems from their documented behaviour — Windows answering on all of 127.0.0.0/8, macOS only on 127.0.0.1 — but were not executed for this release.</li>
-<li>On macOS the host listens on 127.0.0.1 unless the lease address is added as an alias; the lease is recorded either way.</li>
+<li>On macOS the host listens on 127.0.0.1 unless the laptop's address is added as an alias; the address is leased and recorded either way.</li>
+<li>Uniqueness of the laptops' addresses everywhere rests on a fleet register they share. Without one, two laptops are unique in every league they both use, and may — about once in a million pairs — hold the same address in two separate leagues.</li>
+<li>A reinstall of Windows or Linux changes the machine identifier, and the laptop becomes a new device with a new address; the audit trail keeps the old one on earlier lines.</li>
 <li>The renderer must be a Chromium-family browser for the isolated app-mode window. The page itself uses standard web platform features, but other browsers were not tested.</li>
 </ul>
 
@@ -31,6 +33,7 @@
 
 <h2>Engine and laboratory</h2>
 <ul>
+<li>The start frame belongs to this edition's engine ({{engine}}); the reference edition {{reference}} does not have it yet. Games created by 2.5.0-lkvexa.1 have no start frame and start with their first <code>GO</code>.</li>
 <li>The heat maps use the JavaScript kernel; the reference edition's XPU (WebAssembly) kernel is not part of this edition. Both give the same integers.</li>
 <li>The models are descriptive under declared assumptions; the NHLe factors are placeholders ({{ref:models}}). HK001 is a synthetic research laboratory with no predictive authority.</li>
 <li>The engine's own test suite runs in the reference edition; this edition exercises the engine through its browser tests and its store tests on real engine output.</li>

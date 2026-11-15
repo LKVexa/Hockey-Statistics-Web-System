@@ -9,8 +9,9 @@
 <tbody>
 <tr><td><code>--data DIR</code></td><td><code>runtime/</code> beside the program</td><td>The data folder: the league, the event ledger, the lease table and the window's browser profile ({{ref:data-folder}})</td></tr>
 <tr><td><code>--port N</code></td><td>first free of 8800–8829, then one the system assigns</td><td>A fixed port, 0 to 65 535; a port outside that range is a usage error (exit 2)</td></tr>
-<tr><td><code>--address IP</code></td><td>this computer's primary address</td><td>The IP address that receives the loopback lease ({{ref:loopback}})</td></tr>
-<tr><td><code>--leases FILE</code></td><td><code>DIR/loopback/leases</code></td><td>The lease table. A file on a shared folder gives every computer that uses it a different address ({{ref:sharing}})</td></tr>
+<tr><td><code>--device-file FILE</code></td><td>in the user's application data</td><td>This laptop's device file: its identity and pinned address ({{ref:device-file}})</td></tr>
+<tr><td><code>--fleet FILE</code></td><td>the one remembered, if any</td><td>The fleet register every laptop of the club or league shares; remembered in the device file once given ({{ref:fleet}})</td></tr>
+<tr><td><code>--leases FILE</code></td><td><code>DIR/loopback/leases</code></td><td>This league's lease table ({{ref:lease-file}})</td></tr>
 <tr><td><code>--pool CIDR</code></td><td><code>127.16.0.0/12</code></td><td>Where leases come from: inside 127.0.0.0/8, a /9 to a /24, never overlapping 127.0.0.0/16 ({{ref:pool}})</td></tr>
 <tr><td><code>--no-browser</code></td><td>—</td><td>Serve without opening a window (the address is printed)</td></tr>
 <tr><td><code>--allow-default-browser-fallback</code></td><td>—</td><td>When no Edge, Chrome or Chromium is found, open the ordinary browser instead</td></tr>
@@ -29,13 +30,13 @@
     <rect x="4" y="30" width="92" height="44" rx="5" fill="#f3f5f9" stroke="#1d2b4f"/><text x="50" y="49" text-anchor="middle" font-weight="650" fill="#1d2b4f">Check the</text><text x="50" y="62" text-anchor="middle" font-weight="650" fill="#1d2b4f">release code</text>
     <rect x="110" y="30" width="92" height="44" rx="5" fill="#f3f5f9" stroke="#1d2b4f"/><text x="156" y="49" text-anchor="middle" font-weight="650" fill="#1d2b4f">Take the</text><text x="156" y="62" text-anchor="middle" font-weight="650" fill="#1d2b4f">data folder</text>
     <rect x="216" y="30" width="92" height="44" rx="5" fill="#f3f5f9" stroke="#1d2b4f"/><text x="262" y="49" text-anchor="middle" font-weight="650" fill="#1d2b4f">Open the</text><text x="262" y="62" text-anchor="middle" font-weight="650" fill="#1d2b4f">league</text>
-    <rect x="322" y="30" width="92" height="44" rx="5" fill="#f3f5f9" stroke="#1d2b4f"/><text x="368" y="49" text-anchor="middle" font-weight="650" fill="#1d2b4f">Lease the</text><text x="368" y="62" text-anchor="middle" font-weight="650" fill="#1d2b4f">loopback address</text>
+    <rect x="322" y="30" width="92" height="44" rx="5" fill="#f3f5f9" stroke="#1d2b4f"/><text x="368" y="49" text-anchor="middle" font-weight="650" fill="#1d2b4f">Identify the laptop;</text><text x="368" y="62" text-anchor="middle" font-weight="650" fill="#1d2b4f">lease its address</text>
     <rect x="428" y="30" width="92" height="44" rx="5" fill="#f3f5f9" stroke="#1d2b4f"/><text x="474" y="49" text-anchor="middle" font-weight="650" fill="#1d2b4f">Listen</text><text x="474" y="62" text-anchor="middle" font-weight="650" fill="#1d2b4f">(lease, else 127.0.0.1)</text>
     <rect x="534" y="30" width="100" height="44" rx="5" fill="#1d2b4f"/><text x="584" y="49" text-anchor="middle" font-weight="650" fill="#fff">Serve; open</text><text x="584" y="62" text-anchor="middle" font-weight="650" fill="#fff">the window</text>
   </g>
   <g stroke="#1d2b4f" stroke-width="1.1"><line x1="96" y1="52" x2="108" y2="52" marker-end="url(#a2)"/><line x1="202" y1="52" x2="214" y2="52" marker-end="url(#a2)"/><line x1="308" y1="52" x2="320" y2="52" marker-end="url(#a2)"/><line x1="414" y1="52" x2="426" y2="52" marker-end="url(#a2)"/><line x1="520" y1="52" x2="532" y2="52" marker-end="url(#a2)"/></g>
   <g fill="#9b1c1c" font-weight="650" font-size="8.2" text-anchor="middle"><text x="50" y="92">exit 4</text><text x="156" y="92">exit 5</text><text x="262" y="92">exit 6</text><text x="368" y="92">exit 7</text><text x="474" y="92">exit 7</text><text x="584" y="92" fill="#0d6b73">exit 0 on stop</text></g>
-  <g fill="#566079" font-size="7.6" text-anchor="middle"><text x="50" y="105">changed, missing or</text><text x="50" y="115">unlisted code file</text><text x="156" y="105">another host holds</text><text x="156" y="115">the folder</text><text x="262" y="105">a damaged or</text><text x="262" y="115">edited file</text><text x="368" y="105">lease table damaged,</text><text x="368" y="115">full or locked</text><text x="474" y="105">no port free</text><text x="584" y="105">Ctrl+C, stop host,</text><text x="584" y="115">SIGTERM, SIGHUP</text></g>
+  <g fill="#566079" font-size="7.6" text-anchor="middle"><text x="50" y="105">changed, missing or</text><text x="50" y="115">unlisted code file</text><text x="156" y="105">another host holds</text><text x="156" y="115">the folder</text><text x="262" y="105">a damaged or</text><text x="262" y="115">edited file</text><text x="368" y="105">device file or lease</text><text x="368" y="115">table unusable</text><text x="474" y="105">no port free</text><text x="584" y="105">Ctrl+C, stop host,</text><text x="584" y="115">SIGTERM, SIGHUP</text></g>
   <text x="4" y="16" fill="#0d6b73" font-weight="650" font-size="8.2">--verify-only stops after the first step, checks the whole release and the league read-only, and exits 0 or 1</text>
 </svg>
 </figure>
@@ -43,13 +44,14 @@
 <li><p><b>Check the release.</b> Every file under <code>photon/</code>, <code>ui/</code> and <code>engine/</code> must be listed in <code>RELEASE_MANIFEST.json</code> with its SHA-256, and every listed one present and unchanged. Otherwise the start is refused with the lists of missing, changed and unlisted files (exit 4). Documentation, tests and contracts are sealed too, but only a verification checks them ({{ref:manifest}}).</p></li>
 <li><p><b>Take the data folder.</b> The folder is created if absent, and the host creates <code>.rinkvt.lock</code> in it exclusively, holding its process id, its computer's name and the time. If the file exists and names a live process on this computer, the start is refused (exit 5); if it names another computer, the start is refused too, because a data folder belongs to one computer at a time; if it names a process that is gone, the lock is stale and is taken over.</p></li>
 <li><p><b>Open the league.</b> The registry is read and its seal checked; every game's ledger is read and its chain and seals checked. A last line cut off by a stop during a write is dropped (it was never acknowledged) and the window is told which games had one. Any other damage refuses the start (exit 6) and names the file and line ({{ref:recovery}}).</p></li>
-<li><p><b>Lease the loopback address.</b> The IP address is <code>--address</code>, or this computer's primary address: the source address of its default route (found without sending a packet), else the address of its host name, else 127.0.0.1. The lease table gives that address its static loopback address, making the lease on first contact ({{ref:loopback}}). A damaged, full or locked table refuses the start (exit 7).</p></li>
+<li><p><b>Identify this laptop and lease its address.</b> The host reads the laptop's device file, making it on the first start: the device key derived from the machine identifier, and the pinned address. When the laptop belongs to a fleet register that can be reached, the register confirms (or, at enrolment, gives) the address and the pin follows it. The league's lease table then grants the pinned address, unless another laptop holds it in this league, when the laptop receives the next free one here and the start report warns ({{ref:loopback}}). A device file that cannot be written, or a damaged, full or locked table, refuses the start (exit 7).</p></li>
 <li><p><b>Listen.</b> A fresh 256-bit token is drawn for this launch. The host listens on the lease address, or on 127.0.0.1 when the system has no such address (macOS without an alias), on the first free port of 8800–8829, else one the system assigns (exit 7 when none). The start is recorded in the event ledger.</p></li>
 <li><p><b>Serve.</b> The host prints its report and, after 0.3 s, opens the window. It serves until it is stopped.</p></li>
 </ol>
 <p>The report names everything a start decided:</p>
 <pre>RINK-VT {{version}} · LK/Vexa edition (Photon-hosted)
-  loopback 127.20.66.113 · static for 203.0.113.5
+  loopback 127.26.220.77 · static for this laptop (device 786ccb4a)
+  fleet      E:\rinkvt\fleet-leases: registered
   workbench  http://127.20.66.113:8800/
   league     C:\RINK-VT\runtime (12 games)
   The listener is loopback only; Host, Origin and a per-launch token guard it. Ctrl+C stops the host.</pre>
@@ -66,7 +68,7 @@
 <tr><td>4</td><td>Release integrity</td><td>A code file differs from the manifest: restore the release, or reseal a deliberate change ({{ref:release-procedure}})</td></tr>
 <tr><td>5</td><td>Data folder in use</td><td>Another host holds the folder, on this computer or on another one</td></tr>
 <tr><td>6</td><td>League cannot be opened</td><td>Damage in the registry, a ledger or the event ledger: verify, then restore from a backup</td></tr>
-<tr><td>7</td><td>Loopback lease or listener</td><td>The lease table is damaged, full, locked or written for another pool, or no port is free</td></tr>
+<tr><td>7</td><td>Device file, loopback lease or listener</td><td>The device file cannot be written; the lease table is damaged, full, locked or written for another pool; or no port is free</td></tr>
 </tbody>
 </table>
 
@@ -80,7 +82,7 @@
 <tr><td><code>league/registry/registry.sha256.new</code></td><td>Present only between the two renames of a registry commit; completed at the next start ({{ref:power-loss}})</td></tr>
 <tr><td><code>league/ledger/&lt;key&gt;-&lt;uuid8&gt;.jsonl</code></td><td>One ledger per game: a header line, then one hash-chained line per ledger entry pair ({{ref:ledger-format}})</td></tr>
 <tr><td><code>events.jsonl</code></td><td>The host's own hash-chained event ledger: starts, commits, stops and internal errors ({{ref:events}})</td></tr>
-<tr><td><code>loopback/leases</code> and <code>leases.lock</code></td><td>The lease table, and the lock taken while an allocation is made ({{ref:lease-file}})</td></tr>
+<tr><td><code>loopback/leases</code> and <code>leases.lock</code></td><td>This league's lease table — which laptop held which address here — and the lock taken while an allocation is made ({{ref:lease-file}}). The laptop's own device file is kept outside the data folder ({{ref:device-file}})</td></tr>
 <tr><td><code>browser_profile/</code></td><td>The window's own browser profile: no extensions, cookies or sessions of the ordinary browser</td></tr>
 <tr><td><code>.rinkvt.lock</code></td><td>Held while a host has the folder open</td></tr>
 </tbody>

@@ -25,7 +25,7 @@
 <ol class="proc">
 <li><p>Install Python 3.10 or newer if <code>py -3 --version</code> in a Command Prompt does not print one. The launcher looks for <code>py -3</code>, then <code>python</code>, then <code>python3</code>.</p></li>
 <li><p>Double-click <code>START_RINKVT.cmd</code> in the release folder. A console window opens and prints the start report ({{ref:start-sequence}}).</p></li>
-<li><p>The workbench opens in an Edge or Chrome window of its own. The header strip shows <i>loopback 127.x.y.z · static for</i> this computer's address, and <i>league loaded</i>.</p></li>
+<li><p>The workbench opens in an Edge or Chrome window of its own. The header strip shows <i>loopback 127.x.y.z · static for device</i> and the first digits of this laptop's identity, and <i>league loaded</i>. The address belongs to this laptop and stays the same on every network ({{ref:loopback}}).</p></li>
 <li><p>Keep the console window open while working: it is the host. Closing it stops the host; what was recorded stays recorded.</p></li>
 </ol>
 
@@ -44,8 +44,8 @@ rink G1                         enters RINK mode; the prompt shows the score and
 T 20:00 P1                      sets the scoreboard clock: 20:00 in the first period
 LINE FOCO SMIT HALA GOUL VAHN MORE    FOCO's skaters on the ice
 LINE KELW BARK WITC DELI EMBE ZIEL    KELW's skaters on the ice
-FOCO SMIT FOW/N                 FOCO's SMIT wins the faceoff in the neutral zone
-GO                              starts the clock
+START                           the start frame: the opening faceoff; the clock runs from here, never before
+FOCO SMIT FOW/N                 FOCO's SMIT wins the opening faceoff in the neutral zone
 FOCO GOUL S/1W                  a wrist shot from zone 1: expected goals and danger class
 FOCO SMIT G/2P                  a goal: score, plus/minus, stint rotation
 FOCO HALA A                     the primary assist, chained to the open goal
@@ -59,6 +59,9 @@ store verify                    re-reads every seal and chain of the league from
 <h2>Stopping the host</h2>
 <p>The host stops on <kbd>Ctrl</kbd>+<kbd>C</kbd> in its console, on <b>stop host</b> in the window's header strip, or when its console is closed. Every recorded line is already on disk when it is acknowledged, so stopping loses nothing that was shown as recorded. The host records the stop in its event ledger and releases the data folder ({{ref:stopping}}).</p>
 
+<h2 key="several-laptops">Several laptops</h2>
+<p>Each laptop that runs the workbench receives its own static 127 address on its first start, and keeps it. To make sure that no two laptops of a club or league can ever hold the same address, whichever leagues they open, enrol them all once in a shared fleet register: <code>START_RINKVT.cmd --fleet E:\rinkvt\fleet-leases</code> on each laptop, or <code>python tools/leases.py --enroll E:\rinkvt\fleet-leases</code> ({{ref:fleet}}).</p>
+
 <h2 key="troubleshooting">If something does not start</h2>
 <table class="t" key="tbl-troubleshooting" caption="First-start problems and their remedies">
 <colgroup><col style="width:30%"><col style="width:32%"><col style="width:38%"></colgroup>
@@ -68,7 +71,7 @@ store verify                    re-reads every seal and chain of the league from
 <tr><td>REFUSED … does not match RELEASE_MANIFEST.json (exit 4)</td><td>A program file was changed, removed or added under <code>photon/</code>, <code>ui/</code> or <code>engine/</code>, or line endings were converted</td><td>Restore the release from its source; a maintainer reseals a deliberate change ({{ref:release-procedure}})</td></tr>
 <tr><td>REFUSED: the data folder is in use (exit 5)</td><td>Another host has this data folder open</td><td>Use that host's window, or stop it first. A lock left by a host that is gone is taken over automatically</td></tr>
 <tr><td>REFUSED: the league … cannot be opened (exit 6)</td><td>A file of the league is damaged or was edited</td><td>Run <code>--verify-only</code> for the report and restore the folder from a backup ({{ref:recovery}})</td></tr>
-<tr><td>REFUSED: loopback lease … (exit 7)</td><td>The lease table is damaged, full, locked by another program, or written for another pool</td><td>{{ref:lease-file}}</td></tr>
+<tr><td>REFUSED: loopback lease … (exit 7)</td><td>The device file cannot be written, or the lease table is damaged, full, locked by another program, or written for another pool</td><td>{{ref:lease-file}}</td></tr>
 <tr><td>"No Edge, Chrome or Chromium was found"</td><td>No supported browser installed</td><td>Open the printed address in a browser, or start with <code>--allow-default-browser-fallback</code></td></tr>
 <tr><td>The window shows <i>could not load the league</i></td><td>The host stopped, or the window was opened from another host's address</td><td>Start the host again and use the window it opens</td></tr>
 </tbody>

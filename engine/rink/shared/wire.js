@@ -11,6 +11,7 @@
  * System frames put "!" + a 3-letter opcode in 40..43 and a 16-byte payload in 44..59:
  *   !UND undo · !DEL seq · !FXP seq team player · !FXS seq stat mod · !FXC seq x y · !FXA seq slot player
  *   !LIN team p1 p2 p3 (replace on-ice set) · !LIA team p1 p2 p3 (add) · !CLK action period remaining_ds
+ *   (clock actions, byte 44: S set · B start, the game's start frame · G go · H stop · N next · E end)
  * decode() is strict: every text field must be canonical (A-Z, 0-9, NUL-padded, nothing after the first NUL) and
  * every number in range. A frame that is not gets `bad` (the reason) and placeholder text, so bytes chosen by a
  * client never reach a terminal, a log line or the audit trail; the game actor rejects it.
@@ -115,7 +116,7 @@
         }
         break;
       }
-      case 'clock': sys('CLK', (u8, dv) => { u8[44] = { set: 83, go: 71, stop: 72, next: 78, end: 69 }[ast.action]; u8[45] = ast.period || 0; dv.setUint32(46, ast.remainingDs === null || ast.remainingDs === undefined ? 0xffffffff : ast.remainingDs); }); break;
+      case 'clock': sys('CLK', (u8, dv) => { u8[44] = { set: 83, start: 66, go: 71, stop: 72, next: 78, end: 69 }[ast.action]; u8[45] = ast.period || 0; dv.setUint32(46, ast.remainingDs === null || ast.remainingDs === undefined ? 0xffffffff : ast.remainingDs); }); break;
       default: throw new Error(`${ast.kind} is not a state-changing command`);
     }
     return frames;
@@ -141,7 +142,7 @@
         case 'FXA': needSeq(); f.slot = u8[48]; f.player = text(f, u8, 52, 4, RE_OPT, 'player'); if (f.slot !== 1 && f.slot !== 2 && !f.bad) f.bad = 'an assist slot is 1 or 2'; break;
         case 'LIN': case 'LIA': f.team = text(f, u8, 44, 4, RE_TEAM, 'team'); f.players = [0, 1, 2].map((k) => text(f, u8, 48 + 4 * k, 4, RE_OPT, 'player')).filter(Boolean); if (!f.players.length && !f.bad) f.bad = 'a LINE names at least one player'; break;
         case 'CLK': {
-          f.action = { 83: 'set', 71: 'go', 72: 'stop', 78: 'next', 69: 'end' }[u8[44]] || '?'; f.period = u8[45] || null;
+          f.action = { 83: 'set', 66: 'start', 71: 'go', 72: 'stop', 78: 'next', 69: 'end' }[u8[44]] || '?'; f.period = u8[45] || null;
           const r = dv.getUint32(46); f.remainingDs = r === 0xffffffff ? null : r;
           if (!f.bad) {
             if (f.action === '?') f.bad = 'unknown clock action';

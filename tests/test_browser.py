@@ -20,7 +20,6 @@ try:
 except ImportError:  # pragma: no cover
     sync_playwright = None
 
-CLIENT = "198.51.100.23"
 
 
 def wait(fn, timeout=30.0, what="a condition"):
@@ -39,7 +38,7 @@ class Host:
 
     def start(self):
         self.p = subprocess.Popen([sys.executable, "-I", "-B", os.path.join(self.release, "photon", "rinkvt.py"), "--data", self.data,
-                                   "--no-browser", "--address", CLIENT], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+                                   "--no-browser", "--device-file", self.data + ".device.json"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         lines = []
         end = time.time() + 30
         while time.time() < end:
@@ -117,10 +116,11 @@ class Workbench(unittest.TestCase):
         pg = self.page()
         local = pg.get_attribute('meta[name="rinkvt-local"]', "content")
         self.assertRegex(local, r"^127\.(1[6-9]|2\d|3[01])\.\d+\.\d+$")
+        self.assertRegex(pg.inner_text("#h-client"), r"^device [0-9a-f]{8}$")      # static for this laptop, not an IP
         self.assertIn("4 teams", pg.inner_text("#h-league"))
         self.run_line(pg, "rink new FOCO KELW 2026-11-15", "created G1")
         self.run_line(pg, "rink G1", "durable (Photon host")
-        for line in ("T 20:00 P1", "GO"):
+        for line in ("T 20:00 P1", "START"):
             self.run_line(pg, line, "APPLIED")
         time.sleep(1.1)
         self.run_line(pg, "FOCO SMIT S/2W", "COMMITTED")
@@ -142,10 +142,34 @@ class Workbench(unittest.TestCase):
         self.assertRegex(out, r"G1\s+3 entries · chain intact")
         self.assertEqual(self.errors, [])
 
+    def test_start_frame(self):
+        pg = self.page()
+        self.run_line(pg, "rink new FOCO KELW 2026-11-15", "START at the opening faceoff")
+        self.run_line(pg, "rink G1", "EXIT")
+        time.sleep(1.5)
+        score = pg.inner_text("#score")
+        self.assertIn("20:00", score)
+        self.assertIn("not started", score)                              # a new game's clock waits
+        self.run_line(pg, "T 20:00 P1", "APPLIED")
+        out = self.run_line(pg, "GO", "has not started")
+        self.assertIn("REJECTED", out)
+        self.assertIn("game started", self.run_line(pg, "START", "APPLIED"))
+        time.sleep(1.6)
+        score = pg.inner_text("#score")
+        self.assertNotIn("not started", score)
+        self.assertRegex(score, r"P1 19:5\d")                           # running since the start frame
+        self.assertIn("the game started at P1 20:00", self.run_line(pg, "START", "REJECTED"))
+        self.run_line(pg, "STOP", "APPLIED")
+        self.run_line(pg, "GO", "APPLIED")
+        audit = self.run_line(pg, "Q AUDIT", "audit entries")
+        self.assertIn("CLOCK START", audit)                              # the start frame is in the ledger
+        self.assertEqual(self.errors, [])
+
     def test_simulation_and_two_windows(self):
         a = self.page()
         out = self.run_line(a, "rink sim 2", "synthetic games typed", 180)
         self.assertRegex(out, r"G2 ")
+        self.assertNotIn("rejected", out)                                # the simulator starts each game with START
         wait(lambda: "recorded" in a.inner_text("#h-state"), 60, "the simulation to be recorded")
         b = self.page()
         self.assertIn("2 games", b.inner_text("#h-league"))

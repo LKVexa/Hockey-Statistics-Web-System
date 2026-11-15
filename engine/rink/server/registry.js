@@ -277,7 +277,7 @@ class Registry {
   ageDays(p, onDate) { if (!p.birth) return null; return Math.floor((Date.parse(onDate) - Date.parse(p.birth)) / 86400000); }
   /* ---------- games ---------- */
   newGame(o) {
-    let { home, away, date, stage, starters, key } = o && typeof o === 'object' ? o : {};
+    let { home, away, date, stage, starters, key, start } = o && typeof o === 'object' ? o : {};
     home = typeof home === 'string' ? home.toUpperCase() : ''; away = typeof away === 'string' ? away.toUpperCase() : '';
     if (!this.teamsBy.has(home) || !this.teamsBy.has(away) || home === away) throw new Error('a game needs two different registered teams');
     stage = stage === undefined || stage === null || stage === '' ? 'REGULAR' : typeof stage === 'string' ? stage.toUpperCase() : ''; if (!STAGES.has(stage)) throw new Error('stage must be PRESEASON, REGULAR, PLAYOFF or CHAMPIONSHIP');
@@ -300,6 +300,7 @@ class Registry {
       if (g) st[t] = g.pid;
     }
     const game = { key, uuid, idHash, home, away, date, stage, season, starters: st, createdAt: new Date().toISOString() };
+    if (start === 'frame') game.start = 'frame';           // the clock runs only after the game's start frame (START)
     this.data.games.push(game); this._index(); this.save(); return game;
   }
   game(key) { return typeof key === 'string' ? this.gamesBy.get(key) || null : null; }

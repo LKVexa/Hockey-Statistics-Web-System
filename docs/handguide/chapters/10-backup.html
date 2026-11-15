@@ -8,7 +8,8 @@
 <tbody>
 <tr><td><code>league/</code></td><td>Always</td><td>The registry and every game's ledger: the league itself</td></tr>
 <tr><td><code>events.jsonl</code></td><td>Always</td><td>The host's record of starts, commits and stops; part of the audit evidence</td></tr>
-<tr><td><code>loopback/leases</code></td><td>Always</td><td>This computer's address; without it a restored league is typed into from a new address ({{ref:lease-file}})</td></tr>
+<tr><td><code>loopback/leases</code></td><td>Always</td><td>Which laptop held which address in this league; it keeps every laptop unique in the league after a restore ({{ref:lease-file}})</td></tr>
+<tr><td>The laptop's device file</td><td>Optional</td><td>Kept outside the data folder; derived again from the machine when lost, so the laptop keeps its key ({{ref:device-file}})</td></tr>
 <tr><td><code>browser_profile/</code></td><td>Never needed</td><td>The window's browser profile; a new one is made when absent</td></tr>
 <tr><td><code>.rinkvt.lock</code></td><td>Never</td><td>A lock belongs to a running host</td></tr>
 <tr><td>The release folder</td><td>Optional</td><td>Can be obtained again from its source and verified; keeping a copy of the exact release that wrote a league is good practice for an audit</td></tr>
@@ -42,7 +43,7 @@
 <li><p>Install and verify the same release, or a later one, on the new computer.</p></li>
 <li><p>Restore the backup into the new computer's data folder and start the host.</p></li>
 </ol>
-<p>The new computer has its own primary IP address and therefore its own lease: lines typed on it record its address, and the <i>from</i> column of earlier lines keeps the old computer's. To keep the old address — the same computer under a new disk, for instance — restore the lease table with the league and start with <code>--address</code> naming the old IP address.</p>
+<p>The new laptop has an identity of its own and therefore an address of its own: lines typed on it record its address, and the <i>from</i> column of earlier lines keeps the old laptop's. An address belongs to one laptop for good, so a replacement laptop never takes over its predecessor's; the restored lease table keeps both, unique. A reinstall of RINK-VT keeps the laptop's identity; a reinstall of Windows or Linux gives the machine a new identifier, and the laptop is then a new device ({{ref:device-identity}}).</p>
 
 <h2>Updating the release</h2>
 <p>A later release of the LK/Vexa edition opens a league written by an earlier one when it keeps the registry schema <code>rinkvt.registry.v1</code> and the ledger format <code>rinkvt.vec1-ledger.v1</code>; its notes say so when it does not. To update: stop the host, back up the data folder, replace the release folder with the new release (keeping the data folder), verify the new release, and start it.</p>

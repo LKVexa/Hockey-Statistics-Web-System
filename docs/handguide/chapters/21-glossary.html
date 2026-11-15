@@ -20,8 +20,12 @@
 <dt>HK001</dt><dd>A deterministic synthetic research laboratory (MSSL 2.3.0), ported exactly from Go; 563 computation codes and 109 inputs.</dd>
 <dt>Host</dt><dd>Here, the Photon host: the Python program that keeps the league and serves the workbench.</dd>
 <dt>JA21</dt><dd>The JA21 language suites; here, JA Core 0.3 in its provisional grammar, used for modeled contracts.</dd>
-<dt>Key</dt><dd>The canonical text of an IP address, to which a lease belongs.</dd>
-<dt>Lease</dt><dd>The static loopback address an IP address receives and keeps.</dd>
+<dt>Device file</dt><dd>The per-user file in which a laptop keeps its device key, its pinned address and its fleet register ({{ref:device-file}}).</dd>
+<dt>Device key</dt><dd>A laptop's identity: <code>device:</code> and 32 hex digits, an HMAC-SHA-256 digest of its machine identifier.</dd>
+<dt>Fleet register</dt><dd>A lease table every laptop of a club or league shares, which makes their addresses unique everywhere ({{ref:fleet}}).</dd>
+<dt>Key</dt><dd>What a lease belongs to: a laptop's device key, or, in the reference edition, the canonical text of an IP address.</dd>
+<dt>Lease</dt><dd>The static loopback address a laptop (in the reference edition, a client IP address) receives and keeps.</dd>
+<dt>Machine identifier</dt><dd>The operating system's own identifier of the computer (MachineGuid, IOPlatformUUID, machine-id), read but never stored.</dd>
 <dt>Ledger</dt><dd>A game's append-only record of frame and meta-line pairs.</dd>
 <dt>LK/Vexa</dt><dd>The ecosystem of languages and tools (MSSL, JA21, Photon) in which this edition is built and described.</dd>
 <dt>Manifest</dt><dd><code>RELEASE_MANIFEST.json</code>: the SHA-256 of every file of the release.</dd>
@@ -29,6 +33,7 @@
 <dt>MSSL</dt><dd>The language of the MSSL Writers Corpus; here, its observed 0.3 subset, used for sealed component records.</dd>
 <dt>NOT RECORDED</dt><dd>The window's statement that a commit was refused or failed and that the league was loaded again.</dd>
 <dt>Operator</dt><dd>The person running the workbench; in this edition, the identity <code>operator@local</code>.</dd>
+<dt>Pin</dt><dd>The address a laptop keeps in its device file and asks for in every lease table it meets ({{ref:pin}}).</dd>
 <dt>Pair</dt><dd>A frame and its meta line: 128 bytes, one line of a ledger file.</dd>
 <dt>Photon</dt><dd>VEC1 Photon: the design of a Python control plane with a Chromium-family renderer that this edition's host follows.</dd>
 <dt>Pool</dt><dd>The part of 127.0.0.0/8 from which leases are drawn; by default 127.16.0.0/12.</dd>
@@ -38,6 +43,7 @@
 <dt>RINK mode</dt><dd>The mode of the command line in which lines of the scorer's language are scored into the selected game.</dd>
 <dt>Seal</dt><dd>A digest that a file or record must match: the registry's SHA-256, a lease line's 16-digit seal, an MSSL record's κ.</dd>
 <dt>Slot</dt><dd>The position in a pool that a key's hash selects as its first choice.</dd>
+<dt>Start frame</dt><dd>The <code>START</code> line: the opening faceoff, from which a game's clock runs ({{ref:clock}}).</dd>
 <dt>Stint</dt><dd>A stretch of play with fixed personnel and state, the unit of RAPM.</dd>
 <dt>Tip</dt><dd>The last hash of a ledger's chain, summarising the whole ledger.</dd>
 <dt>Token</dt><dd>The 256-bit secret drawn at each launch, required by every API route but health.</dd>

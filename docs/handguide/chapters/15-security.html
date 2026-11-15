@@ -29,6 +29,8 @@
 <tr><td>Oversized or malformed input</td><td>Bodies of at most 32 MiB, no chunked bodies, strict JSON, every entry checked against the engine's seals; roster files are parsed by readers that take time proportional to their input and stop at their limits</td></tr>
 <tr><td>The ordinary browser's profile</td><td>The window runs on a profile of its own with extensions disabled; the ordinary profile is used only on request</td></tr>
 <tr><td>Disclosure through logs</td><td>Requests are not logged; events never record a request's content; the league stores loopback addresses, not IP addresses</td></tr>
+<tr><td>Disclosure of the machine's identity</td><td>The machine identifier is read, never stored or shown: the device key is an HMAC-SHA-256 digest of it under an application-specific key, from which it cannot be recovered and which no other application shares</td></tr>
+<tr><td>Two laptops taken for one</td><td>A device file copied to another computer is recognised and replaced by that computer's own identity; a league's lease table and a fleet register never give one address to two keys</td></tr>
 </tbody>
 </table>
 
@@ -38,6 +40,7 @@
 <li>The page holds the token for its lifetime; closing the window does not revoke it, stopping the host does (each launch draws a new token).</li>
 <li>The renderer is the installed browser, and its security is that browser's. An outdated browser is a risk to the workbench as to anything else.</li>
 <li>On macOS the host listens on 127.0.0.1, which every local program can reach; the Host and token guards still apply.</li>
+<li>A device key identifies a laptop for addressing and auditing; it is not a credential. A person able to write a laptop's device file can give it another key, which shows as another laptop in the audit trail.</li>
 <li>The ledger chain proves that a ledger is internally consistent and unedited since it was written; it does not prove who wrote it. A party able to rewrite the whole data folder could write a different consistent league. Keeping backups elsewhere, and their verification reports, is the control.</li>
 </ul>
 

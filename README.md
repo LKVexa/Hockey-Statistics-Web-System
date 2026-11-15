@@ -1,6 +1,6 @@
 # RINK-VT Workbench — LK/Vexa edition
 
-**2.5.0-lkvexa.1 · Photon-hosted · no Node.js · GPL-3.0-only**
+**2.5.0-lkvexa.2 · Photon-hosted · no Node.js · GPL-3.0-only**
 
 RINK-VT is a hockey statistics workbench. A scorer types one fact per line in a scorer's language —
 `FOCO SMIT G/2P` — and the line becomes one or more 64-byte frames that an event-sourced game actor applies. Box
@@ -39,8 +39,8 @@ research laboratory; it gives no forecasts, odds, or roster, medical, scouting o
 The host prints what it did and the address it serves, then opens the workbench:
 
 ```
-RINK-VT 2.5.0-lkvexa.1 · LK/Vexa edition (Photon-hosted)
-  loopback 127.20.66.113 · static for 203.0.113.5
+RINK-VT 2.5.0-lkvexa.2 · LK/Vexa edition (Photon-hosted)
+  loopback 127.26.220.77 · static for this laptop (device 786ccb4a)
   workbench  http://127.20.66.113:8800/
   league     C:\RINK-VT\runtime (0 games)
   The listener is loopback only; Host, Origin and a per-launch token guard it. Ctrl+C stops the host.
@@ -51,10 +51,10 @@ A first session:
 ```
 rink new FOCO KELW           creates G1 (the four demonstration clubs are seeded into an empty league)
 rink G1                      RINK mode on G1
-T 20:00 P1                   the scoreboard clock
+T 20:00 P1                   the scoreboard clock, standing still
 LINE FOCO SMIT HALA GOUL VAHN MORE
+START                        the start frame: the opening faceoff; the clock runs from here, never before
 FOCO SMIT FOW/N
-GO
 FOCO GOUL S/1W               a shot: xG, danger class, the latched clock
 FOCO SMIT G/2P               a goal
 FOCO HALA A                  the primary assist, chained to the open goal
@@ -65,6 +65,10 @@ OFF-001 --team FOCO --season an HK001 equation over the season
 store verify                 every seal and chain of the league, re-read from disk
 ```
 
+**A new game's clock waits for START.** Creating a game, setting the clock, lineups and the first faceoff never start
+it; `START` — the game's start frame, recorded in the ledger — does, and `GO` is refused until then. `GO` restarts the
+clock after a stoppage or a period break.
+
 **Each line is recorded before its result is shown.** After a command changes the league, the window sends the
 host what changed and waits until the host has synced it to disk. If the host refuses (another window changed the
 league first) or cannot be reached, the window says **NOT RECORDED** and loads the league again, so it only ever
@@ -73,7 +77,7 @@ shows what is on disk.
 ## Options
 
 ```
-python photon/rinkvt.py [--data DIR] [--port N] [--address IP] [--leases FILE] [--pool 127.16.0.0/12]
+python photon/rinkvt.py [--data DIR] [--port N] [--device-file FILE] [--fleet FILE] [--leases FILE] [--pool 127.16.0.0/12]
                         [--no-browser] [--allow-default-browser-fallback] [--verify-only] [--version]
 ```
 
@@ -81,13 +85,14 @@ python photon/rinkvt.py [--data DIR] [--port N] [--address IP] [--leases FILE] [
 |---|---|
 | `--data DIR` | the data folder (default `runtime/` beside the program): the league, the event ledger, the lease table, the window's profile |
 | `--port N` | a fixed port; by default the first free one of 8800–8829 |
-| `--address IP` | the IP address that receives the loopback lease; by default this computer's primary address |
-| `--leases FILE` | the lease table; one file on a shared folder gives every computer that uses it a different address |
+| `--device-file FILE` | this laptop's device file (its identity and pinned address); by default in the user's application data |
+| `--fleet FILE` | the fleet register every laptop of the club or league shares; remembered once given |
+| `--leases FILE` | this league's lease table (default `DIR/loopback/leases`) |
 | `--pool CIDR` | where leases come from: inside 127.0.0.0/8, never overlapping 127.0.0.0/16, prefix /9 to /24 |
 | `--verify-only` | check the release and the league, print a JSON report, exit (0 = verified) |
 
 Exit codes: 0 stopped · 1 verification failed · 2 usage · 4 release integrity · 5 data folder in use · 6 the league
-cannot be opened · 7 loopback lease or listener.
+cannot be opened · 7 device file, loopback lease or listener.
 
 ## The data folder
 
@@ -97,7 +102,7 @@ runtime/
   league/registry/registry.sha256   its SHA-256 (sha256sum -c compatible)
   league/ledger/G1-3913755b.jsonl   one ledger per game: a header line, then one line per frame and its meta line
   events.jsonl                      the host's own hash-chained event ledger (start, commit, stop)
-  loopback/leases                   the static loopback lease table
+  loopback/leases                   which laptop held which 127 address in this league
   browser_profile/                  the window's own browser profile
   .rinkvt.lock                      held while a host has the folder open
 ```
@@ -110,15 +115,27 @@ drops it. Any other damage refuses to open the league, and `--verify-only` names
 by putting the folder back, then run `--verify-only` on it. A league can be checked without a host:
 `python photon/rinkvt.py --verify-only --data COPY` reads it and writes nothing.
 
-## Static loopback addresses
+## Every laptop keeps its own 127 address
 
-Every IP address that starts a host gets one address in `127.16.0.0/12` and keeps it: on every start, on every
-port, and — for the same pool — the same address the reference edition's gateway gives that IP address. The first
-choice is the SHA-256 of the address, modulo the pool; a taken slot moves the newcomer to the next free address. The
-lease is written, synced and sealed in the lease table before it is used. Every line typed into a game records it
-(the meta line's bytes 52–55), so `Q AUDIT` shows which computer typed what, without storing an IP address in the
-league. `python tools/leases.py` reads the table. Windows and Linux answer on the whole of 127.0.0.0/8; macOS answers
-only on 127.0.0.1 unless an alias is added, so there the host listens on 127.0.0.1 and still records its lease.
+Each laptop that runs the workbench gets one address in `127.16.0.0/12` and keeps it — on every network, in every
+league, after every restart and reinstall of RINK-VT — and no two laptops ever hold the same one in a league. The
+address belongs to the laptop, not to its IP address (which changes with every network): it is leased to a
+**device key** derived from the operating system's machine identifier (Windows MachineGuid, macOS IOPlatformUUID,
+Linux machine-id) as an HMAC-SHA-256 digest, so the identifier itself is never stored. The laptop's **device file**
+(`%LOCALAPPDATA%\RINK-VT\device.json`, `~/Library/Application Support/RINK-VT/device.json` or
+`~/.local/share/rink-vt/device.json`) keeps the key and the **pinned** address, which every league's lease table is
+asked for first.
+
+To make the laptops of a club or league unique everywhere, whichever leagues they open, enrol them once in a shared
+**fleet register** (a lease table on a share or a USB disk): `START_RINKVT.cmd --fleet E:\rinkvt\fleet-leases`, or
+`python tools/leases.py --enroll E:\rinkvt\fleet-leases`. The register is remembered; when it cannot be reached, the
+pinned address is used. Two laptops that never shared a register and meet in one league are kept apart there, with a
+warning.
+
+Every line typed into a game records the laptop's address (the meta line's bytes 52–55), so `Q AUDIT` shows which
+laptop typed what. `python tools/leases.py --this-laptop` shows the laptop's identity and address. Windows and Linux
+answer on the whole of 127.0.0.0/8; macOS answers only on 127.0.0.1 unless an alias is added, so there the host
+listens on 127.0.0.1 and still records the laptop's address.
 
 ## Verification and contracts
 

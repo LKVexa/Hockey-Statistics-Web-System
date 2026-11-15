@@ -6,10 +6,10 @@
 <colgroup><col style="width:22%"><col style="width:8%"><col style="width:42%"><col style="width:28%"></colgroup>
 <thead><tr><th>Route</th><th>Token</th><th>Answer</th><th>Errors</th></tr></thead>
 <tbody>
-<tr><td><code>GET /</code>, <code>/index.html</code></td><td>no</td><td>The workbench page, carrying this launch's token and this computer's lease and IP address</td><td>421</td></tr>
+<tr><td><code>GET /</code>, <code>/index.html</code></td><td>no</td><td>The workbench page, carrying this launch's token, this laptop's address and its device label</td><td>421</td></tr>
 <tr><td><code>GET /workbench.js</code>, <code>/workbench.css</code></td><td>no</td><td>The renderer bundle; the styles</td><td>421</td></tr>
 <tr><td><code>GET /api/health</code></td><td>no</td><td><code>{"ok": true, "version"}</code></td><td>421</td></tr>
-<tr><td><code>GET /api/edition</code></td><td>yes</td><td>Product, edition, versions, runtime, the lease, the client address, the pool, the address bound, the data folder, the number of host events, and the games whose cut-off last line was dropped on opening</td><td>403, 421</td></tr>
+<tr><td><code>GET /api/edition</code></td><td>yes</td><td>Product, edition, versions, runtime; the laptop's address, device label and key, pinned address, pool, fleet register and its state, any conflict and the start's notes; the address bound, the data folder, the number of host events, and the games whose cut-off last line was dropped on opening</td><td>403, 421</td></tr>
 <tr><td><code>GET /api/league</code></td><td>yes</td><td><code>{"registry": text or null, "registrySha", "games": [{"key", "uuid", "pairs"}]}</code></td><td>403, 421</td></tr>
 <tr><td><code>GET /api/ledgers?sha=</code></td><td>yes</td><td>Every game's pairs, 128 bytes each, in the order <code>/api/league</code> listed the games, as <code>application/octet-stream</code></td><td>409 when <code>sha</code> is not the current seal</td></tr>
 <tr><td><code>GET /api/verify</code></td><td>yes</td><td>The verification report ({{ref:verification-report}})</td><td>403, 421</td></tr>
@@ -81,4 +81,4 @@ X-VEC1-Token: …
 <p><code>base</code> is the registry seal the window last saw, <code>null</code> before the first registry exists. The answer, after the commit is synced, is <code>{"registrySha": "…", "counts": {"G1": 3}}</code>. A commit that carries neither a registry nor entries is answered without writing anything.</p>
 
 <h2>The page</h2>
-<p>The page is <code>ui/workbench.html</code> with three placeholders replaced when it is served: the launch's token, this computer's lease and the IP address it is static for, each in a <code>&lt;meta&gt;</code> element the page reads at start (<code>rinkvt-token</code>, <code>rinkvt-local</code>, <code>rinkvt-client</code>). The page loads only <code>/workbench.css</code> and <code>/workbench.js</code> from the host, and has no inline script, style or event handler, as its policy requires.</p>
+<p>The page is <code>ui/workbench.html</code> with three placeholders replaced when it is served: the launch's token, this laptop's address and its device label, each in a <code>&lt;meta&gt;</code> element the page reads at start (<code>rinkvt-token</code>, <code>rinkvt-local</code>, <code>rinkvt-client</code>). The page loads only <code>/workbench.css</code> and <code>/workbench.js</code> from the host, and has no inline script, style or event handler, as its policy requires.</p>

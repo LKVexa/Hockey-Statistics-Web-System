@@ -1,19 +1,23 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 RUSSELL PHILIP SMITHSON
-"""Static loopback leases: every IP address gets one address of its own in 127.0.0.0/8 and keeps it.
+"""Static loopback leases: every laptop gets one address of its own in 127.0.0.0/8 and keeps it.
 
-The same rule, the same algorithm and the same file format as the reference edition's gateway (gateway/loopback.js):
+The rule and the algorithm are the reference edition's (gateway/loopback.js); the key differs:
 
   pool          127.16.0.0/12 by default; never overlapping 127.0.0.0/16; addresses ending in .0 or .255 not used
   first choice  SHA-256("RINK-VT loopback 1" NUL key) mod the pool size; a taken slot moves the newcomer on by one
-  key           the IP address in canonical form (RFC 5952 for IPv6; IPv4-mapped IPv6 is IPv4), or its IPv6 network
-  lease file    append-only; one sealed line per lease, synced to disk before the address is used
+  key           in this edition, the laptop's device key (host/device.py): "device:" and 32 hex digits, the same on
+                every network; the reference edition keys a client by its IP address in canonical form (RFC 5952;
+                IPv4-mapped IPv6 is IPv4), which a table here can also hold and the tools can look up
+  pinned        a laptop asks every table for the address it already has (its pin); a table gives it unless another
+                laptop holds it there, so one table never gives one address to two laptops
+  lease file    append-only; one sealed line per lease, synced to disk before the address is used. Format 1 holds IP
+                keys only (the reference edition's); format 2 also holds device keys. A format 1 table that receives
+                a device key is upgraded once: its header names format 2 and every line stays as it was.
 
-In this edition the address that gets a lease is this computer's own: its primary IP address. The Photon host
-listens on that loopback address, the renderer opens it, and every line typed into a game records it. In wide use,
-many computers each run the workbench; give them one lease file on a shared folder and no two of them can ever hold
-the same address (each allocation happens under an exclusive lock and re-reads the file first). Without a shared
-file, two computers could, rarely, land on the same address; with it, never.
+A fleet register is a lease table every laptop of a club or league shares (on a network share or a removable disk):
+each allocation happens under an exclusive lock and re-reads the file first, so no two laptops enrolled in one
+register can ever hold the same address.
 """
 import hashlib
 import ipaddress
@@ -24,7 +28,9 @@ import time
 from datetime import datetime, timezone
 
 DEFAULT_POOL = "127.16.0.0/12"
-FORMAT = 1
+FORMAT = 2                                         # what this build writes
+READ_FORMATS = (1, 2)
+DEVICE_RE = re.compile(r"device:[0-9a-f]{32}")
 HEADER_RE = re.compile(r"^# RINK-VT loopback leases · format (\d+) · pool (\S+) · ipv6 /(\d+)$")
 
 
@@ -59,6 +65,9 @@ def canonical(raw):
 
 
 def client_key(addr, ipv6_prefix=128):
+    """The key a lease belongs to: a laptop's device key as it stands, or an IP address in canonical form."""
+    if isinstance(addr, str) and DEVICE_RE.fullmatch(addr.strip()):
+        return addr.strip()
     c = canonical(addr)
     if c is None:
         return None
@@ -133,7 +142,7 @@ class LeaseTable:
     LOCK_WAIT_S = 15.0
     LOCK_STALE_S = 60.0
 
-    def __init__(self, file=None, pool=DEFAULT_POOL, ipv6_prefix=128, max_leases=65536):
+    def __init__(self, file=None, pool=DEFAULT_POOL, ipv6_prefix=128, max_leases=65536, create_dirs=True):
         self.pool = Pool(pool)
         if not (isinstance(ipv6_prefix, int) and 32 <= ipv6_prefix <= 128):
             raise LoopbackError("CONFIG", "the IPv6 lease prefix must be 32 to 128")
@@ -144,9 +153,14 @@ class LeaseTable:
         self.ipv6_prefix, self.max = ipv6_prefix, max_leases
         self.header = f"# RINK-VT loopback leases · format {FORMAT} · pool {self.pool.text} · ipv6 /{ipv6_prefix}"
         self.file = os.path.abspath(file) if file else None
-        self.by_key, self.by_addr, self._read_upto = {}, {}, 0
+        self.by_key, self.by_addr, self._read_upto, self.file_format = {}, {}, 0, FORMAT
+        self.upgraded = False
         if self.file:
-            os.makedirs(os.path.dirname(self.file), exist_ok=True)
+            if create_dirs:
+                os.makedirs(os.path.dirname(self.file), exist_ok=True)
+            elif not os.path.isdir(os.path.dirname(self.file)):
+                # a fleet register on a share or a removable disk that is not there now: never made in its place
+                raise LoopbackError("UNREACHABLE", f"the folder of {self.file} is not there (share or disk not connected)")
             with self._locked():
                 if not os.path.exists(self.file):
                     self._append(self.header + "\n")
@@ -183,8 +197,9 @@ class LeaseTable:
         h = HEADER_RE.match(lines[0])
         if not h:
             raise LoopbackError("DAMAGED", f"{self.file}: line 1 is not a loopback lease header")
-        if int(h.group(1)) != FORMAT:
-            raise LoopbackError("DAMAGED", f"{self.file} is lease format {h.group(1)}; this build reads format {FORMAT}")
+        if int(h.group(1)) not in READ_FORMATS:
+            raise LoopbackError("DAMAGED", f"{self.file} is lease format {h.group(1)}; this build reads formats 1 and 2")
+        self.file_format = int(h.group(1))
         if h.group(2) != self.pool.text or int(h.group(3)) != self.ipv6_prefix:
             raise LoopbackError("POOL_CHANGED", f"{self.file} holds leases from pool {h.group(2)} with IPv6 keys /{h.group(3)}; "
                                 f"this host is set to {self.pool.text} and /{self.ipv6_prefix}. Leases are static: use the pool the file was written with")
@@ -200,6 +215,8 @@ class LeaseTable:
                 raise LoopbackError("DAMAGED", f"{where} names {addr}, which is not in the pool")
             if client_key(re.sub(r"/\d+$", "", key), self.ipv6_prefix) != key:
                 raise LoopbackError("DAMAGED", f"{where} has a client key that is not canonical")
+            if self.file_format == 1 and DEVICE_RE.fullmatch(key):
+                raise LoopbackError("DAMAGED", f"{where} holds a device key, which a format 1 table cannot")
             if key in self.by_key:
                 raise LoopbackError("DAMAGED", f"{where} leases {key} a second time")
             if addr in self.by_addr:
@@ -244,42 +261,72 @@ class LeaseTable:
         return LeaseTable._Lock(self)
 
     # ---- leases ---------------------------------------------------------------------------------------------
-    def lease(self, raw):
-        """(address, key, fresh) for this IP address; made on first contact and kept for good."""
+    def lease(self, raw, prefer=None):
+        """(address, key, fresh, moved) for this key; made on first contact and kept for good. `prefer` is the address
+        the key already holds elsewhere (a laptop's pin): it is given when it is free here. `moved` says it was not."""
         key = client_key(raw, self.ipv6_prefix)
         if key is None:
-            raise LoopbackError("ADDRESS", "not an IP address")
+            raise LoopbackError("ADDRESS", "neither a device key nor an IP address")
+        if prefer is not None and not self.pool.contains(prefer):
+            prefer = None                           # a pin from another pool is no preference here
         if key in self.by_key:
-            return self.by_key[key][0], key, False
+            a = self.by_key[key][0]
+            return a, key, False, prefer is not None and a != prefer
         if self.file:
             with self._locked():
                 self._refresh()
                 if key in self.by_key:
-                    return self.by_key[key][0], key, False
-                return self._allocate(key)
-        return self._allocate(key)
+                    a = self.by_key[key][0]
+                    return a, key, False, prefer is not None and a != prefer
+                return self._allocate(key, prefer)
+        return self._allocate(key, prefer)
 
-    def _allocate(self, key):
+    def _allocate(self, key, prefer=None):
         if len(self.by_key) >= self.max:
             raise LoopbackError("FULL", f"all {self.max} loopback leases are taken")
-        start = slot_of(key, self.pool.capacity)
-        addr = None
-        for k in range(self.pool.capacity):
-            a = self.pool.address_at((start + k) % self.pool.capacity)
-            if a not in self.by_addr:
-                addr = a
-                break
+        addr = prefer if prefer is not None and prefer not in self.by_addr else None
+        if addr is None:
+            start = slot_of(key, self.pool.capacity)
+            for k in range(self.pool.capacity):
+                a = self.pool.address_at((start + k) % self.pool.capacity)
+                if a not in self.by_addr:
+                    addr = a
+                    break
         if addr is None:
             raise LoopbackError("FULL", f"the pool {self.pool.text} has no free address")
         at = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
         if self.file:
+            if self.file_format == 1 and DEVICE_RE.fullmatch(key):
+                self._upgrade()
             body = f"{addr} {key} {at}"
             self._append(f"{body} {_sha(body)[:16]}\n")   # on disk before anyone is told the address
             with open(self.file, "rb") as f:
                 self._read_upto = f.read().decode("utf-8").count("\n")
         self.by_key[key] = (addr, at)
         self.by_addr[addr] = key
-        return addr, key, True
+        return addr, key, True, prefer is not None and addr != prefer
+
+    def _upgrade(self):
+        """A format 1 table (IP keys only) about to hold a device key: rewrite its header as format 2, under the
+        lock, keeping every lease line byte for byte."""
+        with open(self.file, "rb") as f:
+            raw = f.read()
+        nl = raw.index(b"\n")
+        data = self.header.encode("utf-8") + raw[nl:]
+        tmp = f"{self.file}.{os.getpid()}.tmp"
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_BINARY", 0), 0o600)
+        try:
+            view = memoryview(data)
+            while view:
+                n = os.write(fd, view)
+                if n <= 0:
+                    raise OSError("the disk accepted no bytes")
+                view = view[n:]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        os.replace(tmp, self.file)
+        self.file_format, self.upgraded = FORMAT, True
 
     def lookup(self, raw):
         key = client_key(raw, self.ipv6_prefix) or str(raw)
@@ -287,4 +334,5 @@ class LeaseTable:
         return hit[0] if hit else None
 
     def stats(self):
-        return {"pool": self.pool.text, "capacity": self.pool.capacity, "max": self.max, "leases": len(self.by_key), "persistent": bool(self.file)}
+        return {"pool": self.pool.text, "capacity": self.pool.capacity, "max": self.max, "leases": len(self.by_key), "persistent": bool(self.file),
+                "format": self.file_format}

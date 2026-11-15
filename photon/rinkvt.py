@@ -2,12 +2,13 @@
 # Copyright (C) 2026 RUSSELL PHILIP SMITHSON
 """RINK-VT, LK/Vexa edition: start the Photon host.
 
-    python photon/rinkvt.py [--data DIR] [--port N] [--address IP] [--leases FILE] [--pool 127.16.0.0/12]
-                            [--no-browser] [--allow-default-browser-fallback] [--verify-only] [--version]
+    python photon/rinkvt.py [--data DIR] [--port N] [--device-file FILE] [--fleet FILE] [--leases FILE]
+                            [--pool 127.16.0.0/12] [--no-browser] [--allow-default-browser-fallback] [--verify-only]
 
-The host checks the release, takes the data folder for itself, opens the league, gives this computer its static
-loopback address, listens on it, and opens the workbench in an isolated Chromium-family window. Python 3.10 or newer,
-standard library only. No Node.js is involved anywhere.
+The host checks the release, takes the data folder for itself, opens the league, identifies this laptop and gives it
+its static loopback address — the same on every network and in every league, and never another laptop's — listens on
+it, and opens the workbench in an isolated Chromium-family window. Python 3.10 or newer, standard library only. No
+Node.js is involved anywhere.
 """
 import argparse
 import json
@@ -26,7 +27,8 @@ sys.path.insert(0, HERE)
 
 from host import EDITION, PRODUCT, VERSION, renderer  # noqa: E402
 from host.integrity import verify_release  # noqa: E402
-from host.loopback import DEFAULT_POOL, LeaseTable, LoopbackError, primary_address  # noqa: E402
+from host.device import Device, DeviceError  # noqa: E402
+from host.loopback import DEFAULT_POOL, LeaseTable, LoopbackError, Pool  # noqa: E402
 from host.server import Handler, PhotonHost  # noqa: E402
 from host.store import LeagueStore, StoreError, verify_folder  # noqa: E402
 
@@ -96,6 +98,43 @@ class InstanceLock:
                 pass
 
 
+def lease_this_laptop(ns):
+    """Identify this laptop and give it its address: the pin its device file keeps (from its first lease, or from the
+    fleet register when there is one), granted in this league's own lease table unless another laptop holds it there.
+    Uniqueness within a table always wins: two laptops never share an address in one league or one register."""
+    dev = Device.load(ns.device_file)
+    notes = list(dev.notes)
+    pool = Pool(ns.pool)                                     # refused here when it is not a valid loopback pool
+    most = min(65536, pool.capacity)
+    pin = dev.address if dev.pool == pool.text else None
+    if dev.address and pin is None:
+        notes.append(f"this laptop's pinned address {dev.address} is from the pool {dev.pool}; this start uses {pool.text}")
+    fleet_path = os.path.abspath(ns.fleet) if ns.fleet else dev.fleet
+    fleet_state, fleet_given = None, None
+    if fleet_path:
+        try:
+            fleet = LeaseTable(fleet_path, pool=ns.pool, max_leases=most, create_dirs=False)
+            fa, _, fresh, moved = fleet.lease(dev.key, prefer=pin)
+            if moved:
+                notes.append(f"the fleet register already gives {pin} to another laptop; this laptop is enrolled as {fa}")
+            fleet_state = "enrolled now" if fresh else "registered"
+            pin, fleet_given = fa, fleet_path
+        except (LoopbackError, OSError) as e:
+            fleet_state = "unreachable (" + (str(e)[:120] or type(e).__name__) + ")" + ("; the pinned address is used" if pin else "")
+    table = LeaseTable(ns.leases or os.path.join(ns.data, "loopback", "leases"), pool=ns.pool, max_leases=most)
+    local, _, fresh, moved = table.lease(dev.key, prefer=pin)
+    conflict = None
+    if moved:
+        conflict = (f"in this league's lease table another laptop holds {pin}, this laptop's address; here it is {local}. "
+                    "Enrol every laptop in one fleet register so that no two can meet on one address")
+    if table.upgraded:
+        notes.append("the league's lease table was upgraded to format 2 for device keys; every lease in it was kept")
+    dev.pin(pin or local, table.pool.text, fleet=fleet_given)
+    return {"local": local, "client": dev.label, "device": dev.key, "device_source": dev.source, "device_file": dev.path,
+            "pinned": dev.address, "pool": table.pool.text, "leases": table.stats()["leases"], "fleet": fleet_path,
+            "fleet_state": fleet_state, "conflict": conflict, "notes": notes}
+
+
 def bind(local, port, token, store, info):
     """Listen on this computer's loopback lease; where the system only answers on 127.0.0.1 (macOS), there."""
     ports = [port] if port else list(range(8800, 8830)) + [0]
@@ -117,8 +156,9 @@ def main(argv=None):
     ap = argparse.ArgumentParser(prog="rinkvt", description=f"{PRODUCT} {VERSION} · {EDITION}")
     ap.add_argument("--data", default=os.path.join(ROOT, "runtime"), help="the data folder: the league, the event ledger, the lease table, the renderer profile")
     ap.add_argument("--port", type=int, default=0, help="a fixed port; by default the first free one of 8800-8829")
-    ap.add_argument("--address", default=None, help="the IP address that gets the loopback lease; by default this computer's primary address")
-    ap.add_argument("--leases", default=None, help="the lease table; a file on a shared folder gives every computer that uses it a different address")
+    ap.add_argument("--device-file", default=None, help="this laptop's device file (identity and pinned address); by default in the user's application data")
+    ap.add_argument("--fleet", default=None, help="the fleet register: one lease table every laptop of the club or league shares; remembered once given")
+    ap.add_argument("--leases", default=None, help="this league's lease table (default DIR/loopback/leases)")
     ap.add_argument("--pool", default=DEFAULT_POOL, help="where loopback leases come from (inside 127.0.0.0/8, not 127.0.0.0/16)")
     ap.add_argument("--no-browser", action="store_true", help="do not open the renderer window")
     ap.add_argument("--allow-default-browser-fallback", action="store_true", help="use the ordinary browser profile when no Edge/Chrome/Chromium is found")
@@ -140,6 +180,8 @@ def main(argv=None):
                 report["league"] = {"ok": True, "skipped": f"{holder}. Type store verify in its workbench to check the league it holds."}
             else:                                   # read only: no lock is made or taken over, nothing is repaired
                 report["league"] = verify_folder(ns.data)
+        dev = Device.load(ns.device_file, create=False)
+        report["device"] = dict(dev.report(), ok=True) if dev else {"ok": True, "note": "this laptop has no device file yet; the first start makes it"}
         print(json.dumps(report, indent=2))
         return EXIT["ok"] if release["ok"] and report["league"]["ok"] else EXIT["fail"]
     if not release["ok"]:
@@ -161,15 +203,14 @@ def main(argv=None):
         except StoreError as e:
             print(f"REFUSED: the league in {ns.data} cannot be opened: {e}. Run with --verify-only for the full report; restore the folder from a backup.", file=sys.stderr)
             return EXIT["data"]
-        client = ns.address or primary_address()
         try:
-            table = LeaseTable(ns.leases or os.path.join(ns.data, "loopback", "leases"), pool=ns.pool)
-            local = table.lease(client)[0]
-        except LoopbackError as e:
+            lease = lease_this_laptop(ns)
+        except (LoopbackError, DeviceError) as e:
             print(f"REFUSED: loopback lease: {e}", file=sys.stderr)
             return EXIT["network"]
+        local = lease["local"]
         token = secrets.token_urlsafe(32)
-        info = {"local": local, "client": client, "pool": table.pool.text, "leases": table.stats()["leases"], "data": os.path.abspath(ns.data)}
+        info = dict(lease, data=os.path.abspath(ns.data))
         try:
             httpd = bind(local, ns.port, token, store, info)
         except OSError as e:
@@ -177,11 +218,18 @@ def main(argv=None):
             return EXIT["network"]
         info["bound"] = httpd.server_address[0]
         url = f"http://{httpd.server_address[0]}:{httpd.server_address[1]}/"
-        store.events.add("start", version=VERSION, local=local, bound=info["bound"], port=httpd.server_address[1])
+        store.events.add("start", version=VERSION, local=local, bound=info["bound"], port=httpd.server_address[1], device=info["client"],
+                          pinned=info["pinned"], fleet=info["fleet_state"], conflict=bool(info["conflict"]))
         print(f"{PRODUCT} {VERSION} · {EDITION}", flush=True)
-        print(f"  loopback {local} · static for {client}" + ("" if info["bound"] == local else f" (this system answers only on 127.0.0.1: listening there)"), flush=True)
+        print(f"  loopback {local} · static for this laptop ({info['client']})" + ("" if info["bound"] == local else f" (this system answers only on 127.0.0.1: listening there)"), flush=True)
+        if info["fleet"]:
+            print(f"  fleet      {info['fleet']}: {info['fleet_state']}", flush=True)
         print(f"  workbench  {url}", flush=True)
         print(f"  league     {os.path.abspath(ns.data)} ({len(store.ledgers)} games)", flush=True)
+        for note in info["notes"]:
+            print(f"  NOTE: {note}", flush=True)
+        if info["conflict"]:
+            print(f"  WARNING: {info['conflict']}", flush=True)
         print("  The listener is loopback only; Host, Origin and a per-launch token guard it. Ctrl+C stops the host.", flush=True)
         if not ns.no_browser:
             def _open():

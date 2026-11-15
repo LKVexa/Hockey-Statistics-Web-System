@@ -6,7 +6,8 @@ Provenance
   engine/        The statistics engine of RINK-VT 2.5.0-rinkvt.1, the reference edition (the HERMIT gateway and
                  RINK-VT statistics terminal), by the same author: the command language, frames, game actor,
                  models, roster importer and the HK001 laboratory, as source files, unchanged by this edition
-                 except where the reference edition itself changed them for it (a host-kept league).
+                 except where the reference edition itself changed them for it (a host-kept league), and for
+                 the start frame (START) added in 2.5.0-lkvexa.2, which keeps every earlier behaviour.
   engine/rink/hk001/
                  Contains code derived from the Go standard library; its notices and licence terms are kept in
                  engine/rink/hk001/NOTICE.md and continue to apply to those parts.

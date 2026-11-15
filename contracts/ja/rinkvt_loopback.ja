@@ -5,8 +5,13 @@ policy no_network
 
 record Pool { base: Text, prefix_length: Count, capacity: Count }
 record Lease { address: Text, key: Text, granted_at: Text, seal: Text }
-record LeaseTable { file: Text, pool: Pool, ipv6_prefix: Count, leases: List<Lease> }
-enum LeaseError { NotAnAddress, Full, Damaged, PoolChanged, Locked }
+record LeaseTable { file: Text, format: Count, pool: Pool, ipv6_prefix: Count, leases: List<Lease> }
+record Device { key: Text, source: Text, pinned: Option<Text>, fleet: Option<Text> }
+enum LeaseError { NotAKey, Full, Damaged, PoolChanged, Locked, Unreachable }
+function device_key(machine_identifier: Text) -> Text effects { pure } {
+    let digest: Text = Hmac.sha256_hex("RINK-VT device 1", Text.lower(Text.trim(machine_identifier)))
+    return Text.concat(["device:", digest.prefix(32)])
+}
 function canonical_key(client: Text) -> Text effects { pure } {
     let address: IpAddress = IpAddress.parse(client).without_port().without_zone().unmapped()
     return address.rfc5952()
@@ -21,14 +26,19 @@ function address_at(pool: Pool, slot: Count) -> Text effects { pure } {
 function first_address(key: Text, pool: Pool) -> Text effects { pure } {
     return address_at(pool, first_slot(key, pool))
 }
-function lease(table: LeaseTable, client: Text) -> Result<Lease, LeaseError> effects { file_read, file_write, file_lock } {
-    let key: Text = canonical_key(client)
+function lease(table: LeaseTable, key: Text, prefer: Option<Text>) -> Result<Lease, LeaseError> effects { file_read, file_write, file_lock } {
     match table.leases.find(|l: Lease| l.key == key) {
         Some(l) => Ok(l),
-        None => table.with_lock(|t: LeaseTable| t.reread().allocate_by_probing(key, first_slot(key, t.pool)).append_synced_and_sealed()),
+        None => table.with_lock(|t: LeaseTable| t.reread().allocate(key, prefer.filter(|a: Text| t.is_free(a)).or(t.probe_from(first_slot(key, t.pool)))).append_synced_and_sealed()),
     }
+}
+function lease_laptop(device: Device, fleet: Option<LeaseTable>, league: LeaseTable) -> Result<Lease, LeaseError> effects { file_read, file_write, file_lock } {
+    let pinned: Option<Text> = fleet.map(|f: LeaseTable| lease(f, device.key, device.pinned).address).or(device.pinned)
+    return lease(league, device.key, pinned)
 }
 let default_pool: Pool = Pool { base: "127.16.0.0", prefix_length: 12, capacity: 1040384 }
 assert first_address(canonical_key("203.0.113.5"), default_pool) == "127.20.66.113"
 assert canonical_key("[2001:DB8:0:0::1]:443") == "2001:db8::1"
+assert device_key("4c4c4544003910398053b4c04f584e33") == "device:786ccb4ad0fe713fbca602c54b373160"
+assert first_address(device_key("4c4c4544003910398053b4c04f584e33"), default_pool) == "127.26.220.77"
 emit json default_pool

@@ -8,7 +8,7 @@
 <tbody>
 <tr><td><code>TEAM PLAYER STAT[/mod…]</code></td><td>One event. PLAYER is the player's four-letter code, <code>J91</code>, <code>0091</code> or <code>91</code> (the jersey)</td></tr>
 <tr><td><code>LINE TEAM P1 … P6</code></td><td>The skaters on the ice for TEAM; a goalie's code sets the crease. A team with a LINE is tracked by shifts from then on ({{ref:lineups}})</td></tr>
-<tr><td><code>T mm:ss [P1·P2·P3·OT·SO]</code> · <code>GO</code> · <code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>The scoreboard clock; <code>CLOCK GO</code> and the like also work. Playoff overtime periods are <code>OT</code>, <code>OT2</code> … <code>OT9</code> ({{ref:clock}})</td></tr>
+<tr><td><code>T mm:ss [P1·P2·P3·OT·SO]</code> · <code>START</code> · <code>GO</code> · <code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>The scoreboard clock. <code>START</code> is the game's start frame, the opening faceoff; the clock never runs before it. <code>CLOCK GO</code> and the like also work. Playoff overtime periods are <code>OT</code>, <code>OT2</code> … <code>OT9</code> ({{ref:clock}})</td></tr>
 <tr><td><code>UNDO</code> · <code>DEL n</code> · <code>FIX n …</code></td><td>Corrections, appended to the ledger and never overwritten ({{ref:corrections}})</td></tr>
 <tr><td><code>Q TARGET [args] [--flags]</code></td><td>Queries ({{ref:queries}})</td></tr>
 <tr><td><code>GAME key</code> · <code>LOCALE fr-CA</code> · <code>HELP</code> · <code>EXIT</code></td><td>Select another game · use the French aliases · list the language · leave RINK mode</td></tr>
@@ -44,7 +44,19 @@ KELW BARK P2/TRP        a two-minute minor for tripping</pre>
 </table>
 
 <h2 key="clock">The clock</h2>
-<p><code>T mm:ss [period]</code> sets the scoreboard clock: <code>T 20:00 P1</code> at the start of a game, <code>T 12:31</code> to correct it. <code>GO</code> starts it, <code>STOP</code> stops it, <code>NEXT</code> moves to the next period and <code>END</code> ends the game. A clock time is at most 20:00 and a period at most 12. The clock history is piecewise, and every event takes the clock at its first keystroke, not at <kbd>Enter</kbd>: a scorer who starts typing a goal at 14:02 and finishes at 13:58 records the goal at 14:02.</p>
+<p>A new game's clock stands still at 20:00 of the first period, and nothing a scorer types — setting the clock, a lineup, a faceoff, a shot — makes it run. It runs only from the game's <b>start frame</b>:</p>
+<table class="t" key="tbl-clock" caption="Clock commands">
+<colgroup><col style="width:20%"><col style="width:80%"></colgroup>
+<thead><tr><th>Line</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>T mm:ss [period]</code></td><td>Sets the scoreboard clock without starting it: <code>T 20:00 P1</code> before a game, <code>T 12:31</code> to correct it. A clock time is at most 20:00 and a period at most 12</td></tr>
+<tr><td><code>START</code></td><td>The start frame: the opening faceoff. The clock runs from this line, from the time it shows (20:00 P1 unless <code>T</code> set another). A game has one start frame; a second <code>START</code> is refused and names the moment the game started</td></tr>
+<tr><td><code>GO</code></td><td>Restarts the clock after a stoppage or at the start of a later period. In a game created in this edition, <code>GO</code> before <code>START</code> is refused: "the game has not started: type START at the opening faceoff"</td></tr>
+<tr><td><code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>Stops the clock (a stoppage) · moves to the next period, stopped at its full length · ends the game</td></tr>
+</tbody>
+</table>
+<p>The start frame is a frame like any other line: it is recorded in the ledger (<code>CLOCK START</code> in <code>Q AUDIT</code>), and the clock history begins with it. The rule applies to every game created in this edition, by <code>rink new</code> and by <code>rink sim</code> (whose synthetic games are started with <code>START</code>); a game created by an earlier build has no start frame and starts with its first <code>GO</code>, as it always did, so its ledger replays unchanged.</p>
+<p>The clock history is piecewise, and every event takes the clock at its first keystroke, not at <kbd>Enter</kbd>: a scorer who starts typing a goal at 14:02 and finishes at 13:58 records the goal at 14:02. Events typed while the clock stands still take the time it shows.</p>
 <p>A regular-season game has periods 1 to 5: three of regulation, a sudden-death 3-on-3 overtime of 5:00 and a shootout (best of three, then sudden death). In other stages, playoff overtime periods of 20:00 follow until a goal, up to period 12.</p>
 
 <h2 key="lineups">Lineups</h2>

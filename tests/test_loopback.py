@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Copyright (C) 2026 RUSSELL PHILIP SMITHSON
-"""Static loopback leases: every IP address keeps one 127.x.y.z address, the same one the reference edition gives it."""
+"""Static loopback leases: a laptop keeps one 127.x.y.z address; an IP address gets the one the reference edition gives it."""
 import os
 import unittest
 
@@ -70,7 +70,7 @@ class Static(unittest.TestCase):
         first = {ip: a.lease(ip)[0] for ip in ("192.0.2.1", "192.0.2.2", "2001:db8::7")}
         b = LeaseTable(f)
         for ip, addr in first.items():
-            got, _, fresh = b.lease(ip)
+            got, _, fresh, _ = b.lease(ip)
             self.assertEqual(got, addr)
             self.assertFalse(fresh)
 
@@ -130,6 +130,62 @@ class Static(unittest.TestCase):
         key = "203.0.113.5"
         want = int(hashlib.sha256(("RINK-VT loopback 1\0" + key).encode()).hexdigest()[:16], 16) % 1040384
         self.assertEqual(slot_of(key, 1040384), want)
+
+
+DEV_A = "device:" + "a" * 32
+DEV_B = "device:" + "b" * 32
+
+
+class Devices(unittest.TestCase):
+    def test_device_keys_are_keys(self):
+        self.assertEqual(client_key(DEV_A), DEV_A)
+        for bad in ("device:" + "A" * 32, "device:" + "a" * 31, "device:" + "g" * 32, "device " + "a" * 32):
+            self.assertIsNone(client_key(bad), bad)
+
+    def test_new_tables_are_format_2_and_hold_device_keys(self):
+        f = os.path.join(tempdir(self), "leases")
+        t = LeaseTable(f)
+        a = t.lease(DEV_A)[0]
+        with open(f, encoding="utf-8") as fh:
+            self.assertTrue(fh.readline().startswith("# RINK-VT loopback leases · format 2 · pool 127.16.0.0/12"))
+        self.assertEqual(LeaseTable(f).lease(DEV_A)[0], a)
+
+    def test_a_pin_is_honoured_where_it_is_free(self):
+        t = LeaseTable(pool="127.200.0.0/24", max_leases=254)
+        self.assertEqual(t.lease(DEV_A, prefer="127.200.0.7")[:4:3], ("127.200.0.7", False))
+        addr, _, fresh, moved = t.lease(DEV_B, prefer="127.200.0.7")         # another laptop holds it here
+        self.assertTrue(fresh and moved)
+        self.assertNotEqual(addr, "127.200.0.7")
+        self.assertEqual(t.lease(DEV_A, prefer="127.200.0.7")[3], False)      # the holder keeps it
+        self.assertEqual(t.lease("192.0.2.9", prefer="10.0.0.1")[3], False)  # a pin outside the pool is no preference
+
+    def test_format_1_table_upgraded_once_lines_kept(self):
+        f = os.path.join(tempdir(self), "leases")
+        body = "127.20.66.113 203.0.113.5 2026-11-15T17:32:10Z"
+        import hashlib
+        line = f"{body} {hashlib.sha256(body.encode()).hexdigest()[:16]}\n"
+        with open(f, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# RINK-VT loopback leases · format 1 · pool 127.16.0.0/12 · ipv6 /128\n" + line)
+        t = LeaseTable(f)
+        self.assertEqual(t.lease("203.0.113.5")[0], "127.20.66.113")              # read as it is
+        with open(f, encoding="utf-8") as fh:
+            self.assertIn("format 1", fh.readline())
+        t.lease(DEV_A)                                                         # a device key: the header becomes 2
+        with open(f, encoding="utf-8") as fh:
+            lines = fh.read().split("\n")
+        self.assertIn("format 2", lines[0])
+        self.assertEqual(lines[1] + "\n", line)
+        self.assertTrue(t.upgraded)
+        self.assertEqual(LeaseTable(f).lease("203.0.113.5")[0], "127.20.66.113")
+
+    def test_device_key_in_a_format_1_table_is_damage(self):
+        f = os.path.join(tempdir(self), "leases")
+        body = f"127.16.0.9 {DEV_A} 2026-11-15T17:32:10Z"
+        import hashlib
+        with open(f, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write("# RINK-VT loopback leases · format 1 · pool 127.16.0.0/12 · ipv6 /128\n" + f"{body} {hashlib.sha256(body.encode()).hexdigest()[:16]}\n")
+        with self.assertRaises(LoopbackError):
+            LeaseTable(f)
 
 
 if __name__ == "__main__":

@@ -13,6 +13,7 @@ silent damage and other programs) and the computer (against the page being used 
 | Two hosts on one folder | An exclusive lock file per data folder (exit 5) |
 | Two windows racing | A commit names the registry seal its window saw; a stale one is refused (409) and that window reloads |
 | Oversized or malformed requests | Bodies at most 32 MiB, no chunked bodies, strict JSON (no duplicate keys, no NaN, depth ≤ 64), every entry checked against the engine's seals |
+| The machine's identity | The machine identifier is read, never stored or shown: the laptop's device key is an HMAC-SHA-256 digest of it under an application-specific key; a device file copied to another computer is replaced by that computer's own identity |
 | A roster file | Read in the window by the engine's importer, which takes eight declared formats and caps their size; it never reaches the host as a file |
 
 **Residual risks.** A program running as the same user can read the data folder and the page's token: it is

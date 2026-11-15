@@ -64,7 +64,7 @@ const HELP = `${C.bold}RINK Virtual Terminal${C.reset} — one line, one fact.  
      stats  G S M B · A A1 A2 · FOW FOL (/O /D /N) · ZE ZX (/C /D /F) · H TK GV FC OMR · P2 P4 P5 P10 P20 PS · IN OUT
      shot   /1-9 zone · /W wrist /S slap /P snap /B backhand /T tip · /R rebound /U rush /X royal road · /x,y feet
   ${C.cyan}LINE TEAM P1 … P6${C.reset}          on-ice skaters (a goalie code sets the crease) — shift tracking for stints and RAPM
-  ${C.cyan}T 20:00 P1 · GO · STOP · NEXT · END${C.reset}   scoreboard clock: events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in the playoffs)
+  ${C.cyan}T 20:00 P1 · START · GO · STOP · NEXT · END${C.reset}   scoreboard clock: START is the game's start frame (the opening faceoff; the clock never runs before it), GO restarts it after a stoppage; events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in the playoffs)
   ${C.cyan}UNDO · DEL n · FIX n TEAM PLAYER STAT[/mods] · FIX n A1=19 A2=44 XY=78,-4${C.reset}   corrections (appended, never overwritten)
   ${C.cyan}Q target${C.reset}                   SCORE BOX EVENTS XG STINTS PEN PLAYER STANDINGS LEADERS RAPM GSAX GAR NHLE HEAT LEDGER AUDIT ROSTER CODES HK001
   ${C.cyan}GAME key · LOCALE fr-CA${C.reset}     switch game · French tokens (B=but, T=tir, MG/MP mise en jeu …)
@@ -210,7 +210,7 @@ const rinkCmd = {
           if (rest.length < 2) return fail(ctx, 'rink', 'usage: rink new HOME AWAY [YYYY-MM-DD] [REGULAR|PLAYOFF|PRESEASON|CHAMPIONSHIP]');
           const d = await call(ctx, 'newgame', { home: rest[0], away: rest[1], date: rest[2], stage: rest[3] });
           await selectGame(ctx, d.game.key);
-          ctx.stdout.write(`${paint('green', 'created')} ${d.game.key}  ${d.game.home} vs ${d.game.away}  ${d.game.date} ${d.game.stage}  ${C.grey}uuid ${d.game.uuid}${C.reset}\n${C.grey}start with: T 20:00 P1 · LINE … · FOCO SMIT FOW · GO${C.reset}\n`);
+          ctx.stdout.write(`${paint('green', 'created')} ${d.game.key}  ${d.game.home} vs ${d.game.away}  ${d.game.date} ${d.game.stage}  ${C.grey}uuid ${d.game.uuid}${C.reset}\n${C.grey}start with: T 20:00 P1 · LINE … · ${d.game.start === 'frame' ? 'START at the opening faceoff (the clock waits for it)' : 'FOCO SMIT FOW · GO'}${C.reset}\n`);
           return 0;
         }
         case 'addteam': {

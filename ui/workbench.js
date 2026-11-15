@@ -1,4 +1,4 @@
-/* RINK-VT 2.5.0-lkvexa.1 · LK/Vexa edition · the renderer bundle, built by tools/bundle.py from engine/ and ui/.
+/* RINK-VT 2.5.0-lkvexa.2 · LK/Vexa edition · the renderer bundle, built by tools/bundle.py from engine/ and ui/.
  * Copyright (C) 2026 RUSSELL PHILIP SMITHSON · SPDX-License-Identifier: GPL-3.0-only · no warranty: see LICENSE.
  * The engine's Go-derived parts keep their notices in engine/rink/hk001/NOTICE.md. */
 /* SPDX-License-Identifier: GPL-3.0-only
@@ -379,10 +379,10 @@ D["rink/shared/hcl.js"]=function(module,exports,require,__dirname,__filename){
         let period = null; if (t[2]) { period = Object.prototype.hasOwnProperty.call(PERIODS, U[2]) ? PERIODS[U[2]] : 0; if (!period) return err('period must be P1, P2, P3, OT or SO (OT2 … OT9 in the playoffs)', 2); }
         return { kind: 'clock', action: 'set', remainingDs: ds, period, raw };
       }
-      case 'GO': case 'STOP': case 'NEXT': case 'END': return t.length === 1 ? { kind: 'clock', action: U[0].toLowerCase(), raw } : err(`${U[0]} takes no argument`);
+      case 'START': case 'GO': case 'STOP': case 'NEXT': case 'END': return t.length === 1 ? { kind: 'clock', action: U[0].toLowerCase(), raw } : err(`${U[0]} takes no argument`);
       case 'CLOCK': {
         const a = U[1];
-        if (a === 'GO' || a === 'STOP' || a === 'NEXT' || a === 'END') return { kind: 'clock', action: a.toLowerCase(), raw };
+        if (a === 'START' || a === 'GO' || a === 'STOP' || a === 'NEXT' || a === 'END') return { kind: 'clock', action: a.toLowerCase(), raw };
         if (a === 'SET') { const ds = parseClock(t[2]); if (ds === null) return err('usage: CLOCK SET mm:ss [Pn]', 2); const period = t[3] && Object.prototype.hasOwnProperty.call(PERIODS, U[3]) ? PERIODS[U[3]] : null; if (t[3] && !period) return err('bad period', 3); return { kind: 'clock', action: 'set', remainingDs: ds, period, raw }; }
         return err('usage: CLOCK GO | STOP | NEXT | END | SET mm:ss [Pn]');
       }
@@ -448,6 +448,7 @@ D["rink/shared/wire.js"]=function(module,exports,require,__dirname,__filename){
  * System frames put "!" + a 3-letter opcode in 40..43 and a 16-byte payload in 44..59:
  *   !UND undo · !DEL seq · !FXP seq team player · !FXS seq stat mod · !FXC seq x y · !FXA seq slot player
  *   !LIN team p1 p2 p3 (replace on-ice set) · !LIA team p1 p2 p3 (add) · !CLK action period remaining_ds
+ *   (clock actions, byte 44: S set · B start, the game's start frame · G go · H stop · N next · E end)
  * decode() is strict: every text field must be canonical (A-Z, 0-9, NUL-padded, nothing after the first NUL) and
  * every number in range. A frame that is not gets `bad` (the reason) and placeholder text, so bytes chosen by a
  * client never reach a terminal, a log line or the audit trail; the game actor rejects it.
@@ -552,7 +553,7 @@ D["rink/shared/wire.js"]=function(module,exports,require,__dirname,__filename){
         }
         break;
       }
-      case 'clock': sys('CLK', (u8, dv) => { u8[44] = { set: 83, go: 71, stop: 72, next: 78, end: 69 }[ast.action]; u8[45] = ast.period || 0; dv.setUint32(46, ast.remainingDs === null || ast.remainingDs === undefined ? 0xffffffff : ast.remainingDs); }); break;
+      case 'clock': sys('CLK', (u8, dv) => { u8[44] = { set: 83, start: 66, go: 71, stop: 72, next: 78, end: 69 }[ast.action]; u8[45] = ast.period || 0; dv.setUint32(46, ast.remainingDs === null || ast.remainingDs === undefined ? 0xffffffff : ast.remainingDs); }); break;
       default: throw new Error(`${ast.kind} is not a state-changing command`);
     }
     return frames;
@@ -578,7 +579,7 @@ D["rink/shared/wire.js"]=function(module,exports,require,__dirname,__filename){
         case 'FXA': needSeq(); f.slot = u8[48]; f.player = text(f, u8, 52, 4, RE_OPT, 'player'); if (f.slot !== 1 && f.slot !== 2 && !f.bad) f.bad = 'an assist slot is 1 or 2'; break;
         case 'LIN': case 'LIA': f.team = text(f, u8, 44, 4, RE_TEAM, 'team'); f.players = [0, 1, 2].map((k) => text(f, u8, 48 + 4 * k, 4, RE_OPT, 'player')).filter(Boolean); if (!f.players.length && !f.bad) f.bad = 'a LINE names at least one player'; break;
         case 'CLK': {
-          f.action = { 83: 'set', 71: 'go', 72: 'stop', 78: 'next', 69: 'end' }[u8[44]] || '?'; f.period = u8[45] || null;
+          f.action = { 83: 'set', 66: 'start', 71: 'go', 72: 'stop', 78: 'next', 69: 'end' }[u8[44]] || '?'; f.period = u8[45] || null;
           const r = dv.getUint32(46); f.remainingDs = r === 0xffffffff ? null : r;
           if (!f.bad) {
             if (f.action === '?') f.bad = 'unknown clock action';
@@ -761,7 +762,7 @@ D["rink/shared/assist.js"]=function(module,exports,require,__dirname,__filename)
   else root.RinkAssist = factory(root.RinkHcl);
 })(typeof self !== 'undefined' ? self : this, function (hcl) {
   'use strict';
-  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'GO', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
+  const KEYWORDS = ['LINE', 'UNDO', 'DEL', 'FIX', 'T', 'START', 'GO', 'STOP', 'NEXT', 'END', 'Q', 'GAME', 'LOCALE', 'HELP', 'EXIT'];
   const Q_TARGETS = ['SCORE', 'BOX', 'EVENTS', 'XG', 'STINTS', 'PEN', 'PLAYER', 'STANDINGS', 'LEADERS', 'RAPM', 'GSAX', 'GAR', 'WAR', 'NHLE', 'HEAT', 'LEDGER', 'AUDIT', 'ROSTER', 'CODES', 'HK001'];
   const STATS = Object.keys(hcl.STATS);
   const MODS = {
@@ -804,7 +805,7 @@ D["rink/shared/assist.js"]=function(module,exports,require,__dirname,__filename)
         if (full.kind === 'query') for (const k of Object.keys(full.flags)) if (!takes.includes(k) && !(idx === parts.length - 1 && cur.startsWith('--') && !cur.includes('=') && takes.some((f) => f.startsWith(k)))) return out('error', [], '', `${full.target} does not take --${k}${takes.length ? ` (it takes ${takes.map((f) => '--' + f).join(' ')})` : ''}`);
         return out(full.kind === 'query' ? 'ok' : 'incomplete', takes.map((f) => (hcl.Q_SWITCHES.includes(f) ? '--' + f : f === 'str' ? '--str=5v5' : `--${f}=`)), '');
       }
-      if (['UNDO', 'GO', 'STOP', 'NEXT', 'END', 'HELP', 'EXIT'].includes(w0) && idx === 0) return out(full.kind === 'error' ? 'incomplete' : 'ok', KEYWORDS, '');
+      if (['UNDO', 'START', 'GO', 'STOP', 'NEXT', 'END', 'HELP', 'EXIT'].includes(w0) && idx === 0) return out(full.kind === 'error' ? 'incomplete' : 'ok', KEYWORDS, '');
       if (w0 === 'LINE') {
         if (idx === 1) return out('incomplete', teamsFirst(), 'TEAM_4');
         const team = (parts[1] || '').toUpperCase();
@@ -1202,7 +1203,7 @@ class Registry {
   ageDays(p, onDate) { if (!p.birth) return null; return Math.floor((Date.parse(onDate) - Date.parse(p.birth)) / 86400000); }
   /* ---------- games ---------- */
   newGame(o) {
-    let { home, away, date, stage, starters, key } = o && typeof o === 'object' ? o : {};
+    let { home, away, date, stage, starters, key, start } = o && typeof o === 'object' ? o : {};
     home = typeof home === 'string' ? home.toUpperCase() : ''; away = typeof away === 'string' ? away.toUpperCase() : '';
     if (!this.teamsBy.has(home) || !this.teamsBy.has(away) || home === away) throw new Error('a game needs two different registered teams');
     stage = stage === undefined || stage === null || stage === '' ? 'REGULAR' : typeof stage === 'string' ? stage.toUpperCase() : ''; if (!STAGES.has(stage)) throw new Error('stage must be PRESEASON, REGULAR, PLAYOFF or CHAMPIONSHIP');
@@ -1225,6 +1226,7 @@ class Registry {
       if (g) st[t] = g.pid;
     }
     const game = { key, uuid, idHash, home, away, date, stage, season, starters: st, createdAt: new Date().toISOString() };
+    if (start === 'frame') game.start = 'frame';           // the clock runs only after the game's start frame (START)
     this.data.games.push(game); this._index(); this.save(); return game;
   }
   game(key) { return typeof key === 'string' ? this.gamesBy.get(key) || null : null; }
@@ -1364,6 +1366,7 @@ function freshState(game) {
   return {
     game, version: 0,
     clock: { period: 1, remainingDs: P_LEN * 10, running: false, refNs: 0n, final: false },
+    started: null,                                    // the start frame: { atNs, period, remainingDs }; null before the game starts
     clockHistory: [],                                 // [{ atNs, period, remainingDs, running }]
     teams: { [H]: team(), [A]: team() },
     onIce: { [H]: new Set(), [A]: new Set() }, goalie: { [H]: game.starters && game.starters[H] || null, [A]: game.starters && game.starters[A] || null },
@@ -1587,7 +1590,7 @@ class GameActor {
     const h = s.clockHistory; const last = h.length ? h[h.length - 1] : null;
     let at = entry.f.commitNs; if (at < s.lastNs) at = s.lastNs; if (last && at < last.atNs) at = last.atNs;
     const now = this._clockAt(s, at); const c = s.clock; const stage = this.game.stage;
-    if (!['set', 'go', 'stop', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
+    if (!['set', 'start', 'go', 'stop', 'next', 'end'].includes(f.action)) return pure('unknown clock action');
     if (s.result && f.action !== 'set') return pure('the game is final');
     let period = now.period, rem = now.remainingDs, running = last ? last.running : false;
     if (f.action === 'set') {
@@ -1603,6 +1606,14 @@ class GameActor {
       this._finalize(s, period <= 3 ? 'REG' : stage === 'REGULAR' && period === 5 ? 'SO' : 'OT');
       return { status: 'APPLIED', clock: 'FINAL', result: s.result };
     }
+    // The start frame (START) is the opening faceoff: the clock never runs before it. In a game created under the
+    // start-frame rule (game.start === 'frame') GO is refused until START; in a game of an earlier build the first GO
+    // starts the game, as it always did, so its ledger replays unchanged.
+    if (f.action === 'start') {
+      if (s.started) return pure(`the game started at ${periodText(s.started.period, stage)} ${clockText(s.started.remainingDs)}; GO restarts the clock after a stoppage`);
+      if (rem <= 0) return pure('the period clock is at 0:00; use T mm:ss first');
+      running = true;
+    } else if (f.action === 'go' && !s.started && this.game.start === 'frame') return pure('the game has not started: type START at the opening faceoff');
     if (f.action === 'go') { if (rem <= 0) return pure('the period clock is at 0:00; use NEXT or T mm:ss'); running = true; }
     else if (f.action === 'stop') { running = false; s.stoppage = true; }
     else if (f.action === 'set') { rem = f.remainingDs; if (f.period) period = f.period; if (rem > periodLength(stage, period) * 10) rem = periodLength(stage, period) * 10; }
@@ -1622,8 +1633,9 @@ class GameActor {
     else if (changedPeriod) this._advance(s, el);     // the earlier period is over: penalties run to its end, and nothing typed late may land before this point
     h.push({ atNs: at, period, remainingDs: rem, running });
     Object.assign(c, { period, remainingDs: rem, running, refNs: at });
+    if (!s.started && (f.action === 'start' || f.action === 'go')) s.started = { atNs: at, period, remainingDs: rem };
     if ((changedPeriod && !(period === 5 && stage === 'REGULAR')) || (back && !(stage === 'REGULAR' && period >= 5))) this._rotate(s, el, changedPeriod ? 'NEU' : 'OTF');
-    return { status: 'APPLIED', clock: `${periodText(period, stage)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}` };
+    return { status: 'APPLIED', clock: `${periodText(period, stage)} ${clockText(rem)}${running ? ' ▶' : ' ⏸'}${f.action === 'start' ? ' · game started' : ''}` };
   }
   _decidedAtPeriodEnd(s, period) { const H = this.game.home, A = this.game.away; return period >= 3 && period !== 5 && s.teams[H].score !== s.teams[A].score; }
   _checkFinal(s) {
@@ -1989,6 +2001,7 @@ class GameActor {
     const pens = s.penalties.filter((p) => p.active && !p.done && p.strength).map((p) => ({ id: p.id, team: p.team, code: (this.registry.player(p.pid) || {}).code, kind: p.kind, infraction: p.infraction, endEl: p.endEl, startEl: p.startEl }));
     return { key: g.key, home: H, away: A, score: { [H]: s.teams[H].score, [A]: s.teams[A].score }, shootout: { [H]: s.teams[H].soGoals, [A]: s.teams[A].soGoals },
       period: c.period, periodText: periodText(c.period, g.stage), remainingDs: c.remainingDs, running: c.running, refNs: c.refNs.toString(), periodLength: periodLength(g.stage, c.period),
+      started: !!this.s.started, startRule: g.start === 'frame' ? 'frame' : null,
       strength: this.strength(s, H), situation: { [H]: this.situation(s, H), [A]: this.situation(s, A) }, penalties: pens, final: s.result, events: s.events.length, ledger: this.ledger.length, version: this.version,
       goalies: { [H]: s.goalie[H] ? (this.registry.player(s.goalie[H]) || {}).code : null, [A]: s.goalie[A] ? (this.registry.player(s.goalie[A]) || {}).code : null },
       onIce: { [H]: [...s.onIce[H]].map((pid) => (this.registry.player(pid) || {}).code), [A]: [...s.onIce[A]].map((pid) => (this.registry.player(pid) || {}).code) } };
@@ -3388,7 +3401,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
   const say = (line, gap = 1.2) => { out(line); wall += BigInt(Math.round(gap * 1e9)); };
   // onset that latches exactly at in-period elapsed e while the clock runs
   const onsetAt = (e) => runFromWall + BigInt(Math.round((e - runFromEl) * 1e9));
-  const go = () => { out('GO'); runFromWall = wall + 600000000n; runFromEl = elInPeriod; wall = runFromWall + 200000000n; };
+  const go = () => { out(game.start === 'frame' && !state().started ? 'START' : 'GO'); runFromWall = wall + 600000000n; runFromEl = elInPeriod; wall = runFromWall + 200000000n; };
   const stopAt = (e) => { out('STOP', onsetAt(e) - 600000000n); elInPeriod = e; wall = onsetAt(e) + BigInt(Math.round((12 + 25 * r()) * 1e9)); runFromWall = null; };
   const at = (e, line) => { if (runFromWall === null) { out(line, wall); wall += 1000000000n; } else out(line, onsetAt(e)); };
   const pick = (arr) => arr[Math.floor(r() * arr.length)];
@@ -4993,10 +5006,11 @@ class RinkService extends EventEmitter {
    * @param {number} [o.maxSkewMs=5000]    how far ahead of the server clock a frame's commit time may be
    * @param {object} [o.registryData]      memory only: a league to start from (the parsed registry.json of a store)
    * @param {(game:object)=>Uint8Array[]} [o.preload]  memory only: the stored ledger entries of a game, replayed when it opens
+   * @param {string} [o.startRule]         'frame': games created here are under the start-frame rule (GO refused until START)
    * @param {string} [o.store]             memory only: where the host that runs this service keeps the league durably;
    *                                       the service then reports its ledger as durable, in these words
    */
-  constructor({ dir = null, seed = true, log = null, cachePages = 16, logLines = 64, maxGames = 1000, maxFrames = 20000, maxSkewMs = 5000, importDirs = [], importMaxBytes = 4 * 1024 * 1024, registryData = null, preload = null, store = null } = {}) {
+  constructor({ dir = null, seed = true, log = null, cachePages = 16, logLines = 64, maxGames = 1000, maxFrames = 20000, maxSkewMs = 5000, importDirs = [], importMaxBytes = 4 * 1024 * 1024, registryData = null, preload = null, store = null, startRule = null } = {}) {
     super();
     this.setMaxListeners(0);              // one listener per terminal session and feed; they are capped elsewhere
     this.dir = dir; this.seed = seed; this.log = log || { info() {}, warn() {}, error() {} };
@@ -5004,6 +5018,7 @@ class RinkService extends EventEmitter {
     // hands it the league it stored: the registry here, each game's ledger entries when the game opens.
     if ((registryData || preload || store) && dir) throw new Error('registryData, preload and store are for a service in memory (no dir)');
     this.store = store ? String(store) : null;
+    this.startRule = startRule === 'frame' ? 'frame' : null;   // games created here start only with START
     this.registryData = registryData; this.preload = typeof preload === 'function' ? preload : null;
     this.ledgerOpts = { cachePages, logLines };
     this.maxGames = maxGames; this.maxFrames = maxFrames; this.maxSkewNs = BigInt(Math.max(0, Math.round(maxSkewMs))) * 1000000n;
@@ -5180,7 +5195,7 @@ class RinkService extends EventEmitter {
         if (this.closed) throw new RinkError('UNAVAILABLE', 'the RINK service is shutting down');
         const club = this.clubOf(p); const home = upper(args.home), away = upper(args.away);
         if (club && home !== club && away !== club && !caps.admin) throw new RinkError('FORBIDDEN', `tenant ${club} can create only its own games`);
-        const g = asRequest(() => this.registry.newGame({ home, away, date: args.date === undefined || args.date === null ? undefined : args.date, stage: args.stage === undefined || args.stage === null ? undefined : args.stage, starters: args.starters }));
+        const g = asRequest(() => this.registry.newGame({ home, away, date: args.date === undefined || args.date === null ? undefined : args.date, stage: args.stage === undefined || args.stage === null ? undefined : args.stage, starters: args.starters, start: this.startRule || undefined }));
         this.ctx(g.key); this.epoch++; this.emit('games', { games: this._gameList(), total: this.registry.games().length });
         return { game: g };
       }
@@ -5253,7 +5268,7 @@ class RinkService extends EventEmitter {
       for (let i = 0; i < n && !this.closed; i++) {
         const [home, away] = sched[(this.registry.games().length + i) % sched.length];
         const d = date ? new Date(Date.parse(date + 'T00:00:00Z') + i * 86400000) : new Date(Date.now() - (n - i) * 86400000);
-        const g = asRequest(() => this.registry.newGame({ home, away, date: d.toISOString().slice(0, 10), stage }));
+        const g = asRequest(() => this.registry.newGame({ home, away, date: d.toISOString().slice(0, 10), stage, start: this.startRule || undefined }));
         const c = this.ctx(g.key); const drv = new Driver({ operator: 'simulator', source: 'sim' });
         const r = simulateGame({ game: g, registry: this.registry, seed: (seed + i * 7919) >>> 0, startNs: start, state: () => c.actor.state,
           type: (line, onset) => { drv.at(onset); const { ast, frames } = drv.frames(line, g); if (!frames.length) return { ast, results: [] }; return this.submit(sim, g.key, frames, { source: 'sim', flush: false }); } });
@@ -8511,7 +8526,7 @@ const HELP = `${C.bold}RINK Virtual Terminal${C.reset} — one line, one fact.  
      stats  G S M B · A A1 A2 · FOW FOL (/O /D /N) · ZE ZX (/C /D /F) · H TK GV FC OMR · P2 P4 P5 P10 P20 PS · IN OUT
      shot   /1-9 zone · /W wrist /S slap /P snap /B backhand /T tip · /R rebound /U rush /X royal road · /x,y feet
   ${C.cyan}LINE TEAM P1 … P6${C.reset}          on-ice skaters (a goalie code sets the crease) — shift tracking for stints and RAPM
-  ${C.cyan}T 20:00 P1 · GO · STOP · NEXT · END${C.reset}   scoreboard clock: events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in the playoffs)
+  ${C.cyan}T 20:00 P1 · START · GO · STOP · NEXT · END${C.reset}   scoreboard clock: START is the game's start frame (the opening faceoff; the clock never runs before it), GO restarts it after a stoppage; events latch to the clock at your first keystroke (periods P1 P2 P3 OT SO; OT2 … in the playoffs)
   ${C.cyan}UNDO · DEL n · FIX n TEAM PLAYER STAT[/mods] · FIX n A1=19 A2=44 XY=78,-4${C.reset}   corrections (appended, never overwritten)
   ${C.cyan}Q target${C.reset}                   SCORE BOX EVENTS XG STINTS PEN PLAYER STANDINGS LEADERS RAPM GSAX GAR NHLE HEAT LEDGER AUDIT ROSTER CODES HK001
   ${C.cyan}GAME key · LOCALE fr-CA${C.reset}     switch game · French tokens (B=but, T=tir, MG/MP mise en jeu …)
@@ -8657,7 +8672,7 @@ const rinkCmd = {
           if (rest.length < 2) return fail(ctx, 'rink', 'usage: rink new HOME AWAY [YYYY-MM-DD] [REGULAR|PLAYOFF|PRESEASON|CHAMPIONSHIP]');
           const d = await call(ctx, 'newgame', { home: rest[0], away: rest[1], date: rest[2], stage: rest[3] });
           await selectGame(ctx, d.game.key);
-          ctx.stdout.write(`${paint('green', 'created')} ${d.game.key}  ${d.game.home} vs ${d.game.away}  ${d.game.date} ${d.game.stage}  ${C.grey}uuid ${d.game.uuid}${C.reset}\n${C.grey}start with: T 20:00 P1 · LINE … · FOCO SMIT FOW · GO${C.reset}\n`);
+          ctx.stdout.write(`${paint('green', 'created')} ${d.game.key}  ${d.game.home} vs ${d.game.away}  ${d.game.date} ${d.game.stage}  ${C.grey}uuid ${d.game.uuid}${C.reset}\n${C.grey}start with: T 20:00 P1 · LINE … · ${d.game.start === 'frame' ? 'START at the opening faceoff (the clock waits for it)' : 'FOCO SMIT FOW · GO'}${C.reset}\n`);
           return 0;
         }
         case 'addteam': {
@@ -9119,7 +9134,7 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     }
     if (off !== blob.length) throw new Error('the ledgers the host sent do not match its index');
     const STORE = 'Photon host · sealed registry and hash-chained ledgers on this computer';
-    const s = new RinkService(lg.registry ? { seed: false, registryData: JSON.parse(lg.registry), preload: (game) => pre.get(game.key) || [], store: STORE } : { seed: true, store: STORE });
+    const s = new RinkService(lg.registry ? { seed: false, registryData: JSON.parse(lg.registry), preload: (game) => pre.get(game.key) || [], store: STORE, startRule: 'frame' } : { seed: true, store: STORE, startRule: 'frame' });
     s.init();
     svc = s; client = inProcessRink(svc, ME);
     saved = { sha: lg.registrySha || null, revision: lg.registry ? svc.registry.revision : -1, entries: new Map(lg.games.map((g) => [g.key, g.pairs * 2])) };
@@ -9208,7 +9223,10 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
       return;
     }
     edition = await api('GET', '/api/edition');
-    write(`\x1b[1m${edition.product} ${edition.version}\x1b[0m  ${edition.edition}  (engine ${edition.engine})\n  runtime   ${edition.runtime}\n  loopback  ${edition.local} · static for ${edition.client} · pool ${edition.pool}${edition.bound !== edition.local ? ` · listening on ${edition.bound}` : ''}\n  league    ${edition.data} · ${svc.registry.games().length} games · ${edition.events} host events\n`);
+    write(`\x1b[1m${edition.product} ${edition.version}\x1b[0m  ${edition.edition}  (engine ${edition.engine})\n  runtime   ${edition.runtime}\n  loopback  ${edition.local} · static for this laptop (${edition.client}) · pool ${edition.pool}${edition.bound !== edition.local ? ` · listening on ${edition.bound}` : ''}\n`
+      + (edition.pinned && edition.pinned !== edition.local ? `  pinned    ${edition.pinned}: this laptop's address; in this league another laptop holds it, so here it is ${edition.local}\n` : '')
+      + (edition.fleet ? `  fleet     ${edition.fleet}: ${edition.fleet_state}\n` : '  fleet     none: unique in each league\u2019s lease table; enrol the laptops in one fleet register for one address everywhere\n')
+      + `  league    ${edition.data} · ${svc.registry.games().length} games · ${edition.events} host events\n`);
   }
   async function exec(line, onsetNs) {
     write(promptText() + '\x1b[38;5;252m' + line + '\x1b[0m\n');
@@ -9243,7 +9261,7 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     const first = v.trim().split(/\s+/)[0] || '';
     if (v.trim() && a && !(cmds.has(first) && !a.state.teams.includes(first.toUpperCase()))) { const r = a.analyze(v); st = r.state; g = r.ghost || ''; msg = r.state === 'error' ? r.message : r.state === 'incomplete' ? (r.hint ? 'next: ' + r.hint : '') + (r.candidates && r.candidates.length ? '  ' + r.candidates.slice(0, 8).join(' ') : '') : r.hint || ''; }
     else if (v.trim()) { const c = [...cmds.keys(), 'store', 'help', 'clear'].filter((k) => k.startsWith(first)); st = cmds.has(first) || ['help', 'clear', 'store'].includes(first) ? 'ok' : c.length ? 'incomplete' : 'error'; if (!/\s/.test(v) && c.length === 1) g = c[0].slice(first.length); msg = st === 'error' ? `${first}: not a command` : ''; }
-    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · GO · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
+    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · START · GO · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
     row.dataset.state = st; ghost.textContent = ''; const pad = document.createElement('span'); pad.textContent = v; const gi = document.createElement('i'); gi.textContent = g; ghost.append(pad, gi); hint.textContent = msg;
     return g;
   }
@@ -9318,7 +9336,7 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     const el0 = Number((wire.nowNs() - BigInt(sb.refNs)) / 100000000n); const ds = sb.running ? Math.max(0, sb.remainingDs - el0) : sb.remainingDs;
     const clk = `${Math.floor(ds / 600)}:${String(Math.floor(ds / 10) % 60).padStart(2, '0')}`;
     box.append(el('span', null, sb.home), el('span', 'g', String(sb.score[sb.home])), el('span', 's', '–'), el('span', 'g', String(sb.score[sb.away])), el('span', null, sb.away),
-      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : '⏸'}  ${sb.strength}`));
+      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : '⏸'}  ${sb.strength}${sb.started ? '' : '  · not started: START at the opening faceoff'}`));
     for (const p of sb.penalties) box.append(el('span', 'pen', `${p.team} ${p.code || ''} ${p.infraction || p.kind}`));
   }
   function refresh() {
@@ -9338,7 +9356,9 @@ J["rink/hk001/go-tables.json"]={"source":"Go tables, generated from the Go toolc
     await load();
     edition = await api('GET', '/api/edition');
     out.textContent = '';
-    write(`\x1b[1mRINK-VT ${edition.version}\x1b[0m · ${edition.edition}\n\x1b[38;5;245m${edition.runtime} · loopback \x1b[0m\x1b[38;5;44m${LOCAL}\x1b[0m\x1b[38;5;245m, static for ${CLIENT} · league on this computer: ${svc.registry.teams().length} teams, ${svc.registry.games().length} game${svc.registry.games().length === 1 ? '' : 's'}\x1b[0m\n`);
+    write(`\x1b[1mRINK-VT ${edition.version}\x1b[0m · ${edition.edition}\n\x1b[38;5;245m${edition.runtime} · loopback \x1b[0m\x1b[38;5;44m${LOCAL}\x1b[0m\x1b[38;5;245m, static for this laptop (${CLIENT}) · league on this computer: ${svc.registry.teams().length} teams, ${svc.registry.games().length} game${svc.registry.games().length === 1 ? '' : 's'}\x1b[0m\n`);
+    for (const n of edition.notes || []) write(`\x1b[38;5;245mnote: ${n}\x1b[0m\n`);
+    if (edition.conflict) write(`\x1b[38;5;214mWARNING: ${edition.conflict}\x1b[0m\n`);
     if (edition.recovered && edition.recovered.length) write(`\x1b[38;5;214mthe host dropped an unfinished last line of ${edition.recovered.join(', ')} (cut off by a stop; it had not been acknowledged)\x1b[0m\n`);
     const live = svc.registry.games().slice().reverse().find((g) => { try { return !svc.ctx(g.key).actor.state.result; } catch { return false; } });
     if (live) await cmds.get('rink').run(ctxFor(['rink', live.key], null));

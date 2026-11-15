@@ -21,7 +21,7 @@
 <tr><td><code>00_suite_identity.mssl</code></td><td><code>rinkvt.lkvexa.suite</code></td><td>Product, versions, runtime (no Node.js), components, JA sources, licence, maturity</td></tr>
 <tr><td><code>10_photon_host.mssl</code></td><td><code>rinkvt.lkvexa.photon_host</code></td><td>Routes, guards, invariants, the state model, exit codes</td></tr>
 <tr><td><code>20_league_store.mssl</code></td><td><code>rinkvt.lkvexa.league_store</code></td><td>The commit contract, files, seals, recovery, limits</td></tr>
-<tr><td><code>30_loopback_leases.mssl</code></td><td><code>rinkvt.lkvexa.loopback_leases</code></td><td>Pool, capacity, slot function, keys, file format, refusals</td></tr>
+<tr><td><code>30_loopback_leases.mssl</code></td><td><code>rinkvt.lkvexa.loopback_leases</code></td><td>Per-laptop addresses: the device key, machine identifiers, the device file, the pin, the fleet register; pool, slot function, keys, formats 1 and 2, refusals</td></tr>
 <tr><td><code>40_release_integrity.mssl</code></td><td><code>rinkvt.lkvexa.release_integrity</code></td><td>The manifest, its two scopes, the bundle check</td></tr>
 <tr><td><code>50_renderer.mssl</code></td><td><code>rinkvt.lkvexa.renderer</code></td><td>The window and the page's policy</td></tr>
 <tr><td><code>60_engine.mssl</code></td><td><code>rinkvt.lkvexa.engine</code></td><td>What runs in the window, how a command is recorded, the engine's version</td></tr>
@@ -40,13 +40,13 @@
 <thead><tr><th>Source</th><th>Module</th><th>Describes</th></tr></thead>
 <tbody>
 <tr><td><code>rinkvt_frame.ja</code></td><td><code>rinkvt.contract.frame</code></td><td>The frame, the meta line, and the pair check the store applies</td></tr>
-<tr><td><code>rinkvt_loopback.ja</code></td><td><code>rinkvt.contract.loopback</code></td><td>Canonical keys, the slot function, address placement, a lease</td></tr>
+<tr><td><code>rinkvt_loopback.ja</code></td><td><code>rinkvt.contract.loopback</code></td><td>The device key, canonical IP keys, the slot function, a lease with a pin, a laptop's lease through its fleet register</td></tr>
 <tr><td><code>rinkvt_store.ja</code></td><td><code>rinkvt.contract.store</code></td><td>The admission of a commit, then its sealed, chained, synced writes</td></tr>
 <tr><td><code>rinkvt_host.ja</code></td><td><code>rinkvt.contract.host</code></td><td>The admission of a request: Host, Origin, media type, token, length</td></tr>
 </tbody>
 </table>
 <div class="note"><p>The JA21 sources are modeled contracts. The JA21 suite supplies no JA Core parser, compiler or virtual machine, and this edition does not claim one: nothing executes these files, and the operations they call (<code>Sha256.hex</code>, <code>Crc32c.of</code> and the like) name the implementation's operations rather than a library that exists in JA Core.</p></div>
-<p>What makes them more than prose is the cross-check: every constant they state — the CRC-32C check value, the meta-line magic, the default pool and its capacity, the first lease of 203.0.113.5, the store's registry and ledger limits, the token header and the body limit — is compared by <code>tools/contracts.py check</code> with the value the running implementation holds, and a difference fails the check.</p>
+<p>What makes them more than prose is the cross-check: every constant they state — the CRC-32C check value, the meta-line magic, the default pool and its capacity, the first lease of 203.0.113.5, a device key and its first address, the store's registry and ledger limits, the token header and the body limit — is compared by <code>tools/contracts.py check</code> with the value the running implementation holds, and a difference fails the check.</p>
 
 <h2 key="checking-contracts">Checking with the corpus validators</h2>
 <ol class="proc">

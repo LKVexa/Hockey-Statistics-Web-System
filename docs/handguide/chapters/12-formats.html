@@ -35,7 +35,7 @@
 </tbody>
 </table>
 <h3>System frames</h3>
-<p>A system frame carries <code>!</code> and an opcode in bytes 40–43: <code>!UND</code> (undo), <code>!DEL</code> (delete an event), <code>!FXP</code>, <code>!FXS</code>, <code>!FXC</code>, <code>!FXA</code> (the patches of <code>FIX</code>: player and team, stat and modifier, coordinates, assists), <code>!LIN</code> and <code>!LIA</code> (a lineup and its continuation), and <code>!CLK</code> (a clock command).</p>
+<p>A system frame carries <code>!</code> and an opcode in bytes 40–43: <code>!UND</code> (undo), <code>!DEL</code> (delete an event), <code>!FXP</code>, <code>!FXS</code>, <code>!FXC</code>, <code>!FXA</code> (the patches of <code>FIX</code>: player and team, stat and modifier, coordinates, assists), <code>!LIN</code> and <code>!LIA</code> (a lineup and its continuation), and <code>!CLK</code> (a clock command, whose action is byte 44: <code>S</code> set, <code>B</code> start — the start frame — <code>G</code> go, <code>H</code> stop, <code>N</code> next, <code>E</code> end; byte 45 the period and bytes 46–49 the time, which only a set carries).</p>
 <h3 key="strict-decoding">Strict decoding</h3>
 <p>A frame is untrusted bytes, so it is decoded strictly: every text field is canonical — A–Z and 0–9, NUL-padded, nothing after the first NUL; coordinates are both present or both absent and on the 200 × 85 ft ice; a clock time is at most 20:00, a period at most 12, an assist slot 1 or 2. The actor then checks the stat and modifier against the lexer's grammar, canonical order included. A frame that fails is rejected as malformed and nothing it held is echoed; the audit trail shows <i>(malformed frame)</i>.</p>
 
@@ -99,7 +99,22 @@ hash_n             = SHA-256(prev_n ‖ LF ‖ frame_hex_n ‖ meta_hex_n ‖ LF
 <p>The hash of a line is SHA-256(prev ‖ the compact JSON, with sorted keys, of its <code>seq</code>, <code>at</code>, <code>event</code> and <code>detail</code>); the first <code>prev</code> is SHA-256("RINK-VT events 1"). The events are <code>start</code> (version, lease, address bound, port), <code>commit</code> (whether the registry changed, the number of pairs, the games), <code>stop</code>, and <code>internal_error</code> (where, and the error's type — never a request's content).</p>
 
 <h2>The lease table</h2>
-<p>The lease table is specified in {{ref:lease-file}}.</p>
+<p>The lease table, in its formats 1 and 2, is specified in {{ref:lease-file}}.</p>
+
+<h2 key="device-format">The device file</h2>
+<p>A laptop's device file (where it is kept: {{ref:device-file}}) is one JSON object, written whole through a temporary file, synced and renamed:</p>
+<pre>{
+ "address": "127.26.220.77",                                  the pinned address, or null before the first lease
+ "created": "2026-11-15T18:40:02Z",
+ "device": "device:786ccb4ad0fe713fbca602c54b373160",          the device key
+ "fleet": "E:\\rinkvt\\fleet-leases",                          the fleet register, or null
+ "format": "rinkvt.device.v1",
+ "pinned": "2026-11-15T18:40:02Z",                             when the address was pinned
+ "pool": "127.16.0.0/12",                                       the pool the pin belongs to
+ "seal": "(16 hex digits)",
+ "source": "machine"                                            machine: derived from the machine identifier; random: no identifier
+}</pre>
+<p>The seal is the first 16 hexadecimal digits of the SHA-256 of the compact JSON, with sorted keys, of every member but the seal. A file whose format, key or seal is wrong is replaced by a new one; a file whose source is <code>machine</code> but whose key is not this machine's was made on another computer and is replaced by this machine's identity.</p>
 
 <h2 key="manifest">The release manifest</h2>
 <p><code>RELEASE_MANIFEST.json</code> holds the product, edition, version, engine version, the time it was generated, and <code>files</code>: an object mapping every file of the release — paths relative to the release folder with forward slashes — to its SHA-256. It omits itself, <code>.git</code>, <code>runtime</code>, <code>__pycache__</code>, <code>node_modules</code>, <code>.pytest_cache</code> and compiled Python files. The <i>code</i> scope (checked at every start) is the files under <code>photon/</code>, <code>ui/</code> and <code>engine/</code>, listed or not; the <i>all</i> scope (checked by a verification) is every file.</p>

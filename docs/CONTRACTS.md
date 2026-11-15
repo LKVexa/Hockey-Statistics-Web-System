@@ -15,7 +15,7 @@ MSSL 0.3 documents in the observed `module`/`learn` subset of the MSSL Writers C
 | `00_suite_identity.mssl` | `rinkvt.lkvexa.suite` | product, versions, runtime (no Node.js), components, licence |
 | `10_photon_host.mssl` | `rinkvt.lkvexa.photon_host` | routes, guards, invariants, states, exit codes |
 | `20_league_store.mssl` | `rinkvt.lkvexa.league_store` | the commit contract, files, seals, recovery, limits |
-| `30_loopback_leases.mssl` | `rinkvt.lkvexa.loopback_leases` | pool, slot function, key forms, file format, refusals |
+| `30_loopback_leases.mssl` | `rinkvt.lkvexa.loopback_leases` | per-laptop addresses (device key, device file, pin, fleet register), pool, slot function, formats 1 and 2, refusals |
 | `40_release_integrity.mssl` | `rinkvt.lkvexa.release_integrity` | the manifest, the two scopes, the bundle check |
 | `50_renderer.mssl` | `rinkvt.lkvexa.renderer` | the window and the page policy |
 | `60_engine.mssl` | `rinkvt.lkvexa.engine` | what runs in the window and how a command is recorded |
@@ -34,7 +34,7 @@ and a few top-level assertions on sample values.
 | Source | Module | Describes |
 |---|---|---|
 | `rinkvt_frame.ja` | `rinkvt.contract.frame` | the 64-byte frame, the meta line, and the pair check the store applies |
-| `rinkvt_loopback.ja` | `rinkvt.contract.loopback` | canonical keys, the slot function, probing, a lease |
+| `rinkvt_loopback.ja` | `rinkvt.contract.loopback` | the device key, canonical IP keys, the slot function, a lease with a pin, a laptop's lease through its fleet register |
 | `rinkvt_store.ja` | `rinkvt.contract.store` | a commit: admission (seal, games, start, size) then sealed, chained, synced writes |
 | `rinkvt_host.ja` | `rinkvt.contract.host` | request admission: Host, Origin, media type, token, length |
 
@@ -42,7 +42,7 @@ They are **modeled contracts**. The JA21 suite supplies no JA Core parser, compi
 not claim one: nothing executes these files. They are checked as the suite's `tools/validate_suite.py` checks its
 own scripts (the source header, `module`, `policy no_network`, brace balance), against the grammar's top-level
 forms, and — what makes them more than prose — every constant they state (the CRC-32C check value, the meta magic,
-the pool and its capacity, the first lease of 203.0.113.5, the store's limits, the token header, the body limit) is
+the pool and its capacity, the first lease of 203.0.113.5, a device key and its first address, the store's limits, the token header, the body limit) is
 compared with the implementation's own value by `tools/contracts.py check`.
 
 ## Checking

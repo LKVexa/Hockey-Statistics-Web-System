@@ -52,7 +52,7 @@ function simulateGame({ game, registry, type, state, seed = 1, startNs = 1767225
   const say = (line, gap = 1.2) => { out(line); wall += BigInt(Math.round(gap * 1e9)); };
   // onset that latches exactly at in-period elapsed e while the clock runs
   const onsetAt = (e) => runFromWall + BigInt(Math.round((e - runFromEl) * 1e9));
-  const go = () => { out('GO'); runFromWall = wall + 600000000n; runFromEl = elInPeriod; wall = runFromWall + 200000000n; };
+  const go = () => { out(game.start === 'frame' && !state().started ? 'START' : 'GO'); runFromWall = wall + 600000000n; runFromEl = elInPeriod; wall = runFromWall + 200000000n; };
   const stopAt = (e) => { out('STOP', onsetAt(e) - 600000000n); elInPeriod = e; wall = onsetAt(e) + BigInt(Math.round((12 + 25 * r()) * 1e9)); runFromWall = null; };
   const at = (e, line) => { if (runFromWall === null) { out(line, wall); wall += 1000000000n; } else out(line, onsetAt(e)); };
   const pick = (arr) => arr[Math.floor(r() * arr.length)];

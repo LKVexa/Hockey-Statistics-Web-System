@@ -4,6 +4,7 @@
 <h2 key="actor">The game actor</h2>
 <p>The actor is a pure fold of the accepted frames of one game. Replaying a game's ledger must reach the identical state digest; this is tested in the reference edition and checked by <code>rink ledger verify</code>. Within the fold:</p>
 <dl class="def">
+<dt>Game start</dt><dd>A game created under the start-frame rule (its registry record carries <code>"start": "frame"</code>, as every game created in this edition does) starts with its start frame, <code>START</code>: before it the clock does not run and <code>GO</code> is refused. A game without the rule starts with its first <code>GO</code>. The start is part of the game's state and of its scoreboard (<code>started</code>), but not of its state digest, so replays of earlier ledgers are unchanged.</dd>
 <dt>Clock latching</dt><dd>The scoreboard history is piecewise; each event takes the clock at its first keystroke, not at <kbd>Enter</kbd>. A late clock command takes effect at the newest moment the game knows, never before it, so the clock history stays ordered.</dd>
 <dt>Rosters</dt><dd>A player is found by code, <code>J##</code> or jersey. Club quotas: at most three overage (20-year-old) and two import players dressed.</dd>
 <dt>Locations</dt><dd>Explicit coordinates, then the zone's centroid, then the specification's prior (71, 0). A prior location gets no danger class.</dd>

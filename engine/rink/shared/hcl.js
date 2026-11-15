@@ -177,10 +177,10 @@
         let period = null; if (t[2]) { period = Object.prototype.hasOwnProperty.call(PERIODS, U[2]) ? PERIODS[U[2]] : 0; if (!period) return err('period must be P1, P2, P3, OT or SO (OT2 … OT9 in the playoffs)', 2); }
         return { kind: 'clock', action: 'set', remainingDs: ds, period, raw };
       }
-      case 'GO': case 'STOP': case 'NEXT': case 'END': return t.length === 1 ? { kind: 'clock', action: U[0].toLowerCase(), raw } : err(`${U[0]} takes no argument`);
+      case 'START': case 'GO': case 'STOP': case 'NEXT': case 'END': return t.length === 1 ? { kind: 'clock', action: U[0].toLowerCase(), raw } : err(`${U[0]} takes no argument`);
       case 'CLOCK': {
         const a = U[1];
-        if (a === 'GO' || a === 'STOP' || a === 'NEXT' || a === 'END') return { kind: 'clock', action: a.toLowerCase(), raw };
+        if (a === 'START' || a === 'GO' || a === 'STOP' || a === 'NEXT' || a === 'END') return { kind: 'clock', action: a.toLowerCase(), raw };
         if (a === 'SET') { const ds = parseClock(t[2]); if (ds === null) return err('usage: CLOCK SET mm:ss [Pn]', 2); const period = t[3] && Object.prototype.hasOwnProperty.call(PERIODS, U[3]) ? PERIODS[U[3]] : null; if (t[3] && !period) return err('bad period', 3); return { kind: 'clock', action: 'set', remainingDs: ds, period, raw }; }
         return err('usage: CLOCK GO | STOP | NEXT | END | SET mm:ss [Pn]');
       }

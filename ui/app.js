@@ -41,7 +41,7 @@
     }
     if (off !== blob.length) throw new Error('the ledgers the host sent do not match its index');
     const STORE = 'Photon host · sealed registry and hash-chained ledgers on this computer';
-    const s = new RinkService(lg.registry ? { seed: false, registryData: JSON.parse(lg.registry), preload: (game) => pre.get(game.key) || [], store: STORE } : { seed: true, store: STORE });
+    const s = new RinkService(lg.registry ? { seed: false, registryData: JSON.parse(lg.registry), preload: (game) => pre.get(game.key) || [], store: STORE, startRule: 'frame' } : { seed: true, store: STORE, startRule: 'frame' });
     s.init();
     svc = s; client = inProcessRink(svc, ME);
     saved = { sha: lg.registrySha || null, revision: lg.registry ? svc.registry.revision : -1, entries: new Map(lg.games.map((g) => [g.key, g.pairs * 2])) };
@@ -130,7 +130,10 @@
       return;
     }
     edition = await api('GET', '/api/edition');
-    write(`\x1b[1m${edition.product} ${edition.version}\x1b[0m  ${edition.edition}  (engine ${edition.engine})\n  runtime   ${edition.runtime}\n  loopback  ${edition.local} · static for ${edition.client} · pool ${edition.pool}${edition.bound !== edition.local ? ` · listening on ${edition.bound}` : ''}\n  league    ${edition.data} · ${svc.registry.games().length} games · ${edition.events} host events\n`);
+    write(`\x1b[1m${edition.product} ${edition.version}\x1b[0m  ${edition.edition}  (engine ${edition.engine})\n  runtime   ${edition.runtime}\n  loopback  ${edition.local} · static for this laptop (${edition.client}) · pool ${edition.pool}${edition.bound !== edition.local ? ` · listening on ${edition.bound}` : ''}\n`
+      + (edition.pinned && edition.pinned !== edition.local ? `  pinned    ${edition.pinned}: this laptop's address; in this league another laptop holds it, so here it is ${edition.local}\n` : '')
+      + (edition.fleet ? `  fleet     ${edition.fleet}: ${edition.fleet_state}\n` : '  fleet     none: unique in each league\u2019s lease table; enrol the laptops in one fleet register for one address everywhere\n')
+      + `  league    ${edition.data} · ${svc.registry.games().length} games · ${edition.events} host events\n`);
   }
   async function exec(line, onsetNs) {
     write(promptText() + '\x1b[38;5;252m' + line + '\x1b[0m\n');
@@ -165,7 +168,7 @@
     const first = v.trim().split(/\s+/)[0] || '';
     if (v.trim() && a && !(cmds.has(first) && !a.state.teams.includes(first.toUpperCase()))) { const r = a.analyze(v); st = r.state; g = r.ghost || ''; msg = r.state === 'error' ? r.message : r.state === 'incomplete' ? (r.hint ? 'next: ' + r.hint : '') + (r.candidates && r.candidates.length ? '  ' + r.candidates.slice(0, 8).join(' ') : '') : r.hint || ''; }
     else if (v.trim()) { const c = [...cmds.keys(), 'store', 'help', 'clear'].filter((k) => k.startsWith(first)); st = cmds.has(first) || ['help', 'clear', 'store'].includes(first) ? 'ok' : c.length ? 'incomplete' : 'error'; if (!/\s/.test(v) && c.length === 1) g = c[0].slice(first.length); msg = st === 'error' ? `${first}: not a command` : ''; }
-    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · GO · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
+    else msg = session.mode ? 'TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · START · GO · UNDO · EXIT · help' : 'rink · rink games · q standings · hk001 · OFF-001 · store · help';
     row.dataset.state = st; ghost.textContent = ''; const pad = document.createElement('span'); pad.textContent = v; const gi = document.createElement('i'); gi.textContent = g; ghost.append(pad, gi); hint.textContent = msg;
     return g;
   }
@@ -240,7 +243,7 @@
     const el0 = Number((wire.nowNs() - BigInt(sb.refNs)) / 100000000n); const ds = sb.running ? Math.max(0, sb.remainingDs - el0) : sb.remainingDs;
     const clk = `${Math.floor(ds / 600)}:${String(Math.floor(ds / 10) % 60).padStart(2, '0')}`;
     box.append(el('span', null, sb.home), el('span', 'g', String(sb.score[sb.home])), el('span', 's', '–'), el('span', 'g', String(sb.score[sb.away])), el('span', null, sb.away),
-      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : '⏸'}  ${sb.strength}`));
+      el('span', 's' + (sb.running ? ' run' : ''), sb.final ? 'FINAL' : `${sb.periodText} ${clk} ${sb.running ? '▶' : '⏸'}  ${sb.strength}${sb.started ? '' : '  · not started: START at the opening faceoff'}`));
     for (const p of sb.penalties) box.append(el('span', 'pen', `${p.team} ${p.code || ''} ${p.infraction || p.kind}`));
   }
   function refresh() {
@@ -260,7 +263,9 @@
     await load();
     edition = await api('GET', '/api/edition');
     out.textContent = '';
-    write(`\x1b[1mRINK-VT ${edition.version}\x1b[0m · ${edition.edition}\n\x1b[38;5;245m${edition.runtime} · loopback \x1b[0m\x1b[38;5;44m${LOCAL}\x1b[0m\x1b[38;5;245m, static for ${CLIENT} · league on this computer: ${svc.registry.teams().length} teams, ${svc.registry.games().length} game${svc.registry.games().length === 1 ? '' : 's'}\x1b[0m\n`);
+    write(`\x1b[1mRINK-VT ${edition.version}\x1b[0m · ${edition.edition}\n\x1b[38;5;245m${edition.runtime} · loopback \x1b[0m\x1b[38;5;44m${LOCAL}\x1b[0m\x1b[38;5;245m, static for this laptop (${CLIENT}) · league on this computer: ${svc.registry.teams().length} teams, ${svc.registry.games().length} game${svc.registry.games().length === 1 ? '' : 's'}\x1b[0m\n`);
+    for (const n of edition.notes || []) write(`\x1b[38;5;245mnote: ${n}\x1b[0m\n`);
+    if (edition.conflict) write(`\x1b[38;5;214mWARNING: ${edition.conflict}\x1b[0m\n`);
     if (edition.recovered && edition.recovered.length) write(`\x1b[38;5;214mthe host dropped an unfinished last line of ${edition.recovered.join(', ')} (cut off by a stop; it had not been acknowledged)\x1b[0m\n`);
     const live = svc.registry.games().slice().reverse().find((g) => { try { return !svc.ctx(g.key).actor.state.result; } catch { return false; } });
     if (live) await cmds.get('rink').run(ctxFor(['rink', live.key], null));

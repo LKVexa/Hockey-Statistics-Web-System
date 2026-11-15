@@ -55,6 +55,7 @@ def contracts():
             ("role", "hockey statistics workbench: a scorer's command language, 64-byte frames, an event-sourced game actor, statistical models and the HK001 laboratory"),
             ("runtime", "Photon host (Python 3.10 or newer, standard library only) with a Chromium-family renderer window on an isolated profile"),
             ("node_runtime", False),
+            ("laptop_addresses", "every laptop keeps its own static 127 address, leased to a device key derived from its machine identifier; unique in every lease table, and everywhere among the laptops of one fleet register"),
             ("components", COMPONENTS),
             ("ja_contracts", [f"contracts/ja/{f}" for f in JA_FILES]),
             ("authoritative_source", "bundled: photon/, ui/ and engine/, sealed by RELEASE_MANIFEST.json"),
@@ -72,10 +73,11 @@ def contracts():
             ("invariants", ["one host per data folder, held by an exclusive lock file",
                             "the code of the release matches RELEASE_MANIFEST.json before anything else is opened; otherwise the start is refused with exit code 4",
                             "requests are not logged; the host's event ledger records starts, commits and stops",
+                            "the laptop is identified by its device key, derived from the machine identifier, which is never stored or shown",
                             "every response carries a Content-Security-Policy of default-src 'self' with no inline script or style"]),
-            ("state_model", ["checking the release", "taking the data folder", "opening the league", "leasing the loopback address", "listening", "stopped"]),
+            ("state_model", ["checking the release", "taking the data folder", "opening the league", "identifying this laptop", "leasing its loopback address", "listening", "stopped"]),
             ("exit_codes", {"0": "stopped", "1": "verification failed", "2": "usage", "4": "release integrity", "5": "data folder in use",
-                            "6": "the league cannot be opened", "7": "loopback lease or listener"}),
+                            "6": "the league cannot be opened", "7": "device file, loopback lease or listener"}),
             ("ja_contract", "contracts/ja/rinkvt_host.ja"),
             ("maturity", "OPERATIONAL"),
             ("evidence", ["tests/test_server.py", "tests/test_browser.py"]),
@@ -95,17 +97,21 @@ def contracts():
             ("evidence", ["tests/test_store.py", "tests/test_server.py", "tests/test_browser.py"]),
         ]),
         ("30_loopback_leases.mssl", "rinkvt.lkvexa.loopback_leases", [
-            ("component", "photon/host/loopback.py"),
-            ("contract", "every IP address keeps one 127.x.y.z address for good: a first lease is written, synced and sealed before the address is used, and every later start gives the same address; for the same pool the reference edition gives the same address"),
+            ("component", "photon/host/device.py, photon/host/loopback.py, photon/rinkvt.py (lease_this_laptop), tools/leases.py"),
+            ("contract", "every laptop keeps one 127.x.y.z address for good: the address is leased to the laptop's device key, pinned in its device file, and asked for in every lease table the laptop meets; a table grants it unless another laptop holds it there, so no table ever gives one address to two laptops; a fleet register that every laptop shares makes the addresses unique everywhere; a lease is written, synced and sealed before the address is used"),
+            ("device_key", "device: followed by the first 32 hex digits of HMAC-SHA-256 with the key 'RINK-VT device 1' over the trimmed, lower-cased machine identifier; the identifier itself is never stored; a computer without one gets a random 128-bit key"),
+            ("machine_identifier", {"windows": "HKLM\\SOFTWARE\\Microsoft\\Cryptography\\MachineGuid", "macos": "IOPlatformUUID", "linux": "/etc/machine-id or /var/lib/dbus/machine-id"}),
+            ("device_file", {"windows": "%LOCALAPPDATA%\\RINK-VT\\device.json", "macos": "~/Library/Application Support/RINK-VT/device.json", "linux": "$XDG_DATA_HOME/rink-vt/device.json", "override": "RINKVT_DEVICE_FILE or --device-file"}),
             ("pool", "127.16.0.0/12"),
             ("capacity", 1040384),
             ("slot", "the first 16 hex digits of SHA-256('RINK-VT loopback 1' NUL key), modulo the capacity; then linear probing over host addresses .1 to .254"),
-            ("keys", "the canonical text of the IP address (RFC 5952; an IPv4-mapped IPv6 address is its IPv4 address); optionally an IPv6 /N prefix"),
-            ("file_format", "a header line '# RINK-VT loopback leases · format 1 · pool P · ipv6 /N', then one line per lease: address, key, time and a 16-digit seal"),
-            ("refusals", ["an edited or damaged line", "a second lease for one key or one address", "a pool or IPv6 prefix other than the file's", "a full pool"]),
+            ("keys", "a device key; or, as the reference edition keys its clients, the canonical text of an IP address (RFC 5952; an IPv4-mapped IPv6 address is its IPv4 address)"),
+            ("file_format", "a header line '# RINK-VT loopback leases · format 2 · pool P · ipv6 /N', then one line per lease: address, key, time and a 16-digit seal; a format 1 table (IP keys only) is read, and upgraded once, every line kept, when it receives a device key"),
+            ("fleet_register", "a lease table on a share or a removable disk that every laptop of a club or league uses (--fleet, remembered once given); never created where its folder is missing; when it cannot be reached, the pinned address is used"),
+            ("refusals", ["an edited or damaged line", "a second lease for one key or one address", "a pool or IPv6 prefix other than the file's", "a device key in a format 1 table", "a full pool"]),
             ("ja_contract", "contracts/ja/rinkvt_loopback.ja"),
             ("maturity", "OPERATIONAL"),
-            ("evidence", ["tests/test_loopback.py"]),
+            ("evidence", ["tests/test_loopback.py", "tests/test_device.py", "tests/test_browser.py"]),
         ]),
         ("40_release_integrity.mssl", "rinkvt.lkvexa.release_integrity", [
             ("component", "photon/host/integrity.py, tools/seal_release.py, tools/bundle.py"),
@@ -122,13 +128,14 @@ def contracts():
             ("evidence", ["tests/test_browser.py", "tests/test_release.py"]),
         ]),
         ("60_engine.mssl", "rinkvt.lkvexa.engine", [
-            ("component", "engine/ (32 modules and 3 data tables of the reference edition's engine), ui/loader.js, ui/app.js"),
+            ("component", "engine/ (32 modules and 3 data tables: the reference edition's engine 2.5.0-rinkvt.1 with the start frame of this release), ui/loader.js, ui/app.js"),
             ("contract", "the command language, frames, game actor, models, roster importer and HK001 run in the renderer as the reference edition runs them; the window sends the host every change a command made and shows the command's result only after the host has it on disk; when the host refuses, the window loads the league again"),
             ("engine_version", ENGINE),
+            ("start_frame", "START is the game's start frame, a !CLK frame with the action byte 66 (B): the opening faceoff. In a game created under the start-frame rule, as every game created in this edition is, the clock runs only after it and GO is refused until then; a game created by an earlier build starts with its first GO, so its ledger replays unchanged"),
             ("ja_contract", "contracts/ja/rinkvt_frame.ja"),
             ("maturity", "OPERATIONAL"),
             ("evidence", ["tests/test_browser.py", "tests/test_store.py"]),
-            ("scope_limit", "the engine's own test suite belongs to the reference edition (Node.js); this edition exercises the engine through its browser tests"),
+            ("scope_limit", "the engine's own test suite belongs to the reference edition (Node.js), whose 78 engine tests pass on this engine; this edition exercises the engine through its browser tests"),
         ]),
     ]
 
@@ -287,10 +294,19 @@ def check_ja(path):
     return problems
 
 
+def _engine_clock_byte(action):
+    """The clock-action byte the engine's wire format writes for an action (rink/shared/wire.js)."""
+    with open(os.path.join(ROOT, "engine", "rink", "shared", "wire.js"), encoding="utf-8") as f:
+        m = re.search(r"\{ set: 83, [^}]*\}\[ast\.action\]", f.read())
+    found = re.search(action + r": (\d+)", m.group(0)) if m else None
+    return found.group(1) if found else "(not in the engine)"
+
+
 def cross_checks():
     """Constants the contracts state, checked against the implementation that keeps them."""
     from host.crc32c import crc32c
-    from host.loopback import DEFAULT_POOL, LeaseTable, Pool
+    from host.device import derive
+    from host.loopback import DEFAULT_POOL, LeaseTable, Pool, slot_of
     from host.server import MAX_BODY, TOKEN_HEADER
     from host.store import MAX_PAIRS_PER_GAME, MAX_REGISTRY, META_MAGIC
     ja = {}
@@ -300,8 +316,11 @@ def cross_checks():
     want = [
         ("rinkvt_frame.ja", 'Crc32c.of(Bytes.text("123456789")) == ' + str(crc32c(b"123456789", 9))),
         ("rinkvt_frame.ja", "meta_magic: Count = " + str(META_MAGIC)),
+        ("rinkvt_frame.ja", "clock_start_byte: Count = " + _engine_clock_byte("start")),
         ("rinkvt_loopback.ja", f'base: "{DEFAULT_POOL.split("/")[0]}", prefix_length: {DEFAULT_POOL.split("/")[1]}, capacity: {Pool(DEFAULT_POOL).capacity}'),
         ("rinkvt_loopback.ja", f'first_address(canonical_key("203.0.113.5"), default_pool) == "{LeaseTable().lease("203.0.113.5")[0]}"'),
+        ("rinkvt_loopback.ja", f'device_key("4c4c4544003910398053b4c04f584e33") == "{derive("4c4c4544003910398053b4c04f584e33")}"'),
+        ("rinkvt_loopback.ja", f'first_address(device_key("4c4c4544003910398053b4c04f584e33"), default_pool) == "{Pool(DEFAULT_POOL).address_at(slot_of(derive("4c4c4544003910398053b4c04f584e33"), Pool(DEFAULT_POOL).capacity))}"'),
         ("rinkvt_store.ja", f"max_registry_bytes: Count = {MAX_REGISTRY}"),
         ("rinkvt_store.ja", f"max_pairs_per_game: Count = {MAX_PAIRS_PER_GAME}"),
         ("rinkvt_host.ja", f'token_header: Text = "{TOKEN_HEADER}"'),

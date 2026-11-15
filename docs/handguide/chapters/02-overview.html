@@ -2,7 +2,7 @@
 <p class="lede">The workbench is a scorer's console and a statistics engine in one window, with a small host program that keeps the league on disk and never lets the window show a result that is not recorded.</p>
 
 <h2>The workbench in brief</h2>
-<p>An operator starts the Photon host. The host checks that its own code is the code the release sealed, takes the data folder for itself, opens the league, gives this computer its static loopback address, listens on that address only, and opens the workbench in a Chromium-family window with a profile of its own. The window loads the league from the host and replays every game's ledger through the engine. From then on the engine runs in the window: each line the scorer types is lexed, compiled to frames and applied by the game actor in memory, and whatever the line changed — new ledger entries, a changed registry — is sent to the host, which checks it, writes it, syncs it to disk and only then answers. The window shows the line's result after that answer, and only after it.</p>
+<p>An operator starts the Photon host. The host checks that its own code is the code the release sealed, takes the data folder for itself, opens the league, identifies this laptop and gives it its own static loopback address, listens on that address only, and opens the workbench in a Chromium-family window with a profile of its own. The window loads the league from the host and replays every game's ledger through the engine. From then on the engine runs in the window: each line the scorer types is lexed, compiled to frames and applied by the game actor in memory, and whatever the line changed — new ledger entries, a changed registry — is sent to the host, which checks it, writes it, syncs it to disk and only then answers. The window shows the line's result after that answer, and only after it.</p>
 
 <h2 key="editions">Two editions</h2>
 <p>RINK-VT exists in two editions. They share the engine — the language, the frame, the actor, the models and HK001 — and the static loopback lease algorithm, and differ in what surrounds the engine.</p>
@@ -15,7 +15,7 @@
 <tr><td>Users</td><td>One operator identity, <code>operator@local</code>, with administrative capability; several windows on one host</td><td>Principals with capabilities <code>rink.query</code>, <code>rink.score</code>, <code>rink.admin</code>; club tenants; SPIRAL terminals and a browser dashboard</td></tr>
 <tr><td>Network</td><td>A loopback listener only</td><td>A network listener (wide use) or loopback; live feeds over WebSocket</td></tr>
 <tr><td>Ledger on disk</td><td>Hash-chained JSON-lines files, one per game, plus a sealed registry</td><td>SSD-RAM files (64-byte records, out-of-place pages), plus the same sealed registry</td></tr>
-<tr><td>Static loopback addresses</td><td>This computer's address gets a lease; the host listens on it and every line records it</td><td>Every client IP address that signs in gets a lease; sessions, logs and the audit trail use it</td></tr>
+<tr><td>Static loopback addresses</td><td>Each laptop keeps its own address, leased to the laptop itself (its machine identity), not to its IP address; the host listens on it and every line records it</td><td>Every client IP address that signs in gets a lease; sessions, logs and the audit trail use it</td></tr>
 <tr><td>Release integrity</td><td>The host refuses to start when its code differs from <code>RELEASE_MANIFEST.json</code></td><td><code>tools/verify.js</code> and <code>tools/mkmanifest.js --check</code> against <code>release/manifest.json</code></td></tr>
 <tr><td>Contracts</td><td>MSSL records and JA21 sources, checked by the release's tools and the MSSL corpus validator</td><td>None</td></tr>
 <tr><td>Typical use</td><td>A scorer's bench, a club's own statistics, a classroom, an air-gapped computer</td><td>A league office serving several scorers and readers at once</td></tr>
@@ -80,7 +80,7 @@
 <dl class="def">
 <dt>Record before show</dt><dd>A command's result appears only after the host has synced what the command changed. A refusal is shown as NOT RECORDED and the window reloads, so it never shows what is not on disk.</dd>
 <dt>Nothing unchecked is kept</dt><dd>Every entry the host writes passes the engine's CRC-32C seals and belongs to its game; every stored file is sealed or hash-chained; damage refuses to open and is named.</dd>
-<dt>One engine</dt><dd>The engine's source files are the reference edition's, unchanged except for the two options the reference edition itself added for a host that keeps the league ({{ref:engine-options}}).</dd>
+<dt>One engine</dt><dd>The engine's source files are the reference edition's {{reference}}, unchanged except for the options the reference edition added for a host that keeps the league ({{ref:engine-options}}) and the start frame added in this release ({{ref:clock}}), which keeps every earlier behaviour and passes the reference edition's 78 engine tests.</dd>
 <dt>One folder, one host</dt><dd>A data folder is held by an exclusive lock; a second host is refused.</dd>
 <dt>A sealed release</dt><dd>The host refuses to run code that the release did not seal.</dd>
 <dt>Honest maturity</dt><dd>The contracts say OPERATIONAL only with the tests that show it, and the qualification names the platform it ran on ({{ref:contracts}}).</dd>

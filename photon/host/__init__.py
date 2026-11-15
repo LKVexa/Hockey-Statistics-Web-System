@@ -6,7 +6,7 @@ The control plane that takes Node's place. It follows the VEC1 Design Photon mod
 Chromium-family window as the renderer, a loopback JSON API guarded by Host, Origin and a per-launch token) and
 keeps the league: the registry, every game's ledger, and the static loopback lease of this computer.
 """
-VERSION = "2.5.0-lkvexa.1"
-ENGINE = "2.5.0-rinkvt.1"
+VERSION = "2.5.0-lkvexa.2"
+ENGINE = "2.5.0-rinkvt.1+startframe"
 PRODUCT = "RINK-VT"
 EDITION = "LK/Vexa edition (Photon-hosted)"
