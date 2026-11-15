@@ -12,18 +12,19 @@ MSSL 0.3 documents in the observed `module`/`learn` subset of the MSSL Writers C
 
 | Record | Module | Says |
 |---|---|---|
-| `00_suite_identity.mssl` | `rinkvt.lkvexa.suite` | product, versions, runtime (no Node.js), components, licence |
+| `00_suite_identity.mssl` | `rinkvt.lkvexa.suite` | product, versions, runtime (native executables; no Python, no Node.js), components, licence |
 | `10_photon_host.mssl` | `rinkvt.lkvexa.photon_host` | routes, guards, invariants, states, exit codes |
 | `20_league_store.mssl` | `rinkvt.lkvexa.league_store` | the commit contract, files, seals, recovery, limits |
 | `30_loopback_leases.mssl` | `rinkvt.lkvexa.loopback_leases` | per-laptop addresses (device key, device file, pin, fleet register), pool, slot function, formats 1 and 2, refusals |
 | `40_release_integrity.mssl` | `rinkvt.lkvexa.release_integrity` | the manifest, the two scopes, the bundle check |
 | `50_renderer.mssl` | `rinkvt.lkvexa.renderer` | the window and the page policy |
 | `60_engine.mssl` | `rinkvt.lkvexa.engine` | what runs in the window and how a command is recorded |
-| `90_qualification.mssl` | `rinkvt.lkvexa.qualification` | written by `tools/contracts.py qualify` from a test run: result, counts, platform, scope |
+| `90_qualification.mssl` | `rinkvt.lkvexa.qualification` | written by `rinkvt-photon contracts qualify` from a test run: result, counts, platform, scope |
 
-Records 00–60 are written by `python tools/contracts.py write` from the table in `tools/contracts.py`, so a change
-to a contract is a change to that table. Record 90 is written only by `qualify`, which runs the whole test suite and
-records what it showed: `PASS` only when every test passed, the platform it ran on, and what was not covered.
+Records 00–60 are written by `rinkvt-photon contracts write` from the table in `photon/contracts_table.go`, so a
+change to a contract is a change to that table. Record 90 is written only by `qualify`, which runs the whole test
+suite (`go test -count=1 -v ./...` in `photon/`) and records what it showed: `PASS` only when every test passed, the
+platform it ran on, and what was not covered.
 
 ## JA21 sources (`contracts/ja/`)
 
@@ -40,19 +41,24 @@ and a few top-level assertions on sample values.
 | `rinkvt_host.ja` | `rinkvt.contract.host` | request admission: Host, Origin, media type, token, length |
 
 They are **modeled contracts**. The JA21 suite supplies no JA Core parser, compiler or VM, and this edition does
-not claim one: nothing executes these files. They are checked as the suite's `tools/validate_suite.py` checks its
-own scripts (the source header, `module`, `policy no_network`, brace balance), against the grammar's top-level
+not claim one: nothing executes these files. They are checked by the rules the suite's own validator applies to its
+scripts (the source header, `module`, `policy no_network`, brace balance), against the grammar's top-level
 forms, and — what makes them more than prose — every constant they state (the CRC-32C check value, the meta magic,
 the clock bytes of START and WHISTLE, the six overtime presets and the built-in rules, the pool and its capacity, the first lease of 203.0.113.5, a device key and its first address, the store's limits, the token header, the body limit) is
-compared with the implementation's own value by `tools/contracts.py check`.
+compared with the implementation's own value by `rinkvt-photon contracts check`.
 
 ## Checking
 
 ```
-python tools/contracts.py check
-python tools/contracts.py check --mssl-verifier <MSSL_WRITERS_CORPUS_1.0.0>/tools/VERIFY_MSSL.py
-RINKVT_MSSL_VERIFIER=<…>/VERIFY_MSSL.py python -m unittest discover -s tests -p "test_*.py"
+RINKVT.cmd contracts check          (Windows)
+./rinkvt.sh contracts check         (macOS, Linux)
 ```
 
-The corpus validator is used, not copied: `--mssl-verifier` loads `validate_source` from your copy of the corpus
-and applies it to every record, in addition to this repository's own implementation of the same predicates.
+Both run the Photon host's own `contracts` command; `VERIFY_RINKVT` runs the same check as its step [3]. Nothing
+else is needed: the edition has no Python and no Node.js. The host applies the single-document predicates of the MSSL
+Writers Corpus validator (`validate_source` of its `tools/VERIFY_MSSL.py`) itself — the envelope, the field order,
+each field's JSON value, the seal — and does not ship or call that validator, which is a Python program. A copy of
+the corpus can still be pointed at `contracts/mssl/` by anyone who has it; the records are written in its format.
+
+`RINKVT.cmd contracts write` rewrites records 00–60 from the table; `RINKVT.cmd contracts qualify` writes record 90
+and needs the Go toolchain, because it runs the test suite.

@@ -1,5 +1,5 @@
 <h1 key="tests">Tests</h1>
-<p class="lede">The claims of this guide about the LK/Vexa edition rest on its test suite: {{n_tests}} tests in {{n_test_modules}} modules, run by the verifier and by the qualification. The engine's own, larger suite belongs to the reference edition.</p>
+<p class="lede">The claims of this guide about the LK/Vexa edition rest on its test suite: {{n_tests}} Go tests in {{n_test_modules}} files of <code>photon/</code>, run by the qualification of every release. The engine's own, larger suite belongs to the reference edition.</p>
 
 <h2>The qualification of this release</h2>
 <table class="t kvt" key="tbl-qual-summary" caption="The qualification record of this release">
@@ -12,10 +12,10 @@
 <tr><td>Scope</td><td>{{q_scope}}</td></tr>
 </tbody>
 </table>
-<p>The record is <code>contracts/mssl/90_qualification.mssl</code>, written by <code>tools/contracts.py qualify</code> from the run itself ({{ref:qualification}}). A skipped test is one whose optional tool was absent on the qualifying computer; the record's scope says what that leaves uncovered.</p>
+<p>The record is <code>contracts/mssl/90_qualification.mssl</code>, written by the host's <code>contracts qualify</code> from the run itself ({{ref:qualification}}). A test is skipped only when what it needs is absent on the qualifying computer — the browser tests without Edge, Chrome or Chromium — and the record's scope then says what that leaves uncovered.</p>
 
 <h2>The edition's tests</h2>
-<p>The inventory below is generated from the test suite when this guide is built: the module, the test, and the test's own statement of what it shows.</p>
+<p>The inventory below is generated from the test files when this guide is printed: each file with its own statement of what it covers, and each test by what it shows and by its name, which <code>go test -run</code> takes.</p>
 {{tests_table}}
 
 <h2>What the tests establish</h2>
@@ -24,14 +24,16 @@
 <dt>Leases</dt><dd>Device keys and pins honoured where free; new tables in format 2; a format 1 table read, and upgraded once with every line kept; a device key in a format 1 table refused; canonical IP keys in every spelling; pools refused when invalid; the same addresses and the same probing as the reference edition; leases static across restarts and unique over thousands of addresses; a full pool refused; one table shared by two writers; a cut-off line dropped; an edited line and a changed pool refused.</dd>
 <dt>Store</dt><dd>Commits that survive reopening; entries written by the engine itself accepted; stale seals, wrong starts, removed games, bad seals, half pairs, bad base64 and unknown games refused with nothing written; invalid registries refused; cut-off lines dropped on opening and reported by verification without repair; edited entries, removed lines and an edited registry refused; an interrupted registry commit completed, and a commit cut off before its rename discarded.</dd>
 <dt>Host API</dt><dd>The page carries its token and every security header; the Host guard refuses every other name; the token guard refuses missing, wrong and altered tokens; mutations refused for the wrong media type, a foreign origin, a missing token, duplicate keys, a non-object and an oversized body; only the bundle and stylesheet served as files; a full commit, league, ledgers and verification round trip, with stale seals refused.</dd>
-<dt>Release</dt><dd>A sealed release passes; a changed, missing or unlisted code file is refused and the host exits 4; a documentation change does not stop a start but fails a full verification; the bundle is current; the page obeys its own policy.</dd>
-<dt>Contracts</dt><dd>Every static record valid and equal to what the generator writes, and accepted by the corpus validator when it is present; the validator refuses damaged documents; the JA sources well formed; their constants equal to the implementation's; the JA checker refuses what the suite refuses.</dd>
-<dt>Browser</dt><dd>The real host in its own process and the workbench in Chromium: a new game's clock standing still until its start frame, <code>GO</code> refused before <code>START</code>, a second <code>START</code> refused, the start frame in the audit trail; the whistle by <kbd>Esc</kbd> (the half-typed line kept), by its chip and by <code>WHISTLE mm:ss</code>, refused before the start and on a stopped clock, in the audit trail and replayed after a reload; a league's overtime rules set by preset, a tie that stands with its point and its standings column, an international playoff game with a 10:00 3-on-3 overtime and a five-round shootout, and a game keeping the rules it was created under; a game created and scored, each line recorded, the audit trail naming this computer's lease, the league intact across a reload and across a restart of the host with the same lease, <code>store verify</code> OK; a simulation recorded; two windows racing, the later refused and reloaded; no page or console error.</dd>
+<dt>Release</dt><dd>A sealed release passes; a changed, missing or unlisted code file is refused and the host exits 4; a documentation change does not stop a start but fails a full verification; <code>--verify-only</code> writes nothing; the <code>verify</code> command finds a sealed, qualified copy of the release VERIFIED in all five steps and a changed one NOT VERIFIED; the host's self-test passes; the bundle is current, and every module and data table it names is in <code>engine/</code>; the page obeys its own policy; and no file of the release is a Python or Node.js program or package, and no launcher calls either.</dd>
+<dt>Contracts</dt><dd>Every static record valid and equal to what the generator writes; a well-formed document accepted, and a changed fact, rule count, rule number, rule form, envelope or projection refused; the JA sources well formed; their constants equal to the implementation's; the JA checker refuses what the suite refuses.</dd>
+<dt>Earlier releases</dt><dd>A league, an event ledger, a device file and a lease table written by the earlier host, with names outside ASCII among them, open and verify; the device file keeps its address and fleet register, the lease table its leases; and the league still verifies after this host has committed to it and recorded an event.</dd>
+<dt>This guide</dt><dd>The PDF reader and writer; the numbering of headings, tables and figures and their cross-references; the test inventory; and the whole guide printed by a browser, with its destinations, page labels, bookmarks, document information and a running header and footer on every page but the cover.</dd>
+<dt>Browser</dt><dd>The real host in its own process and the workbench in a Chromium-family browser, driven over its DevTools protocol: a new game's clock standing still until its start frame, <code>GO</code> refused before <code>START</code>, a second <code>START</code> refused, the start frame in the audit trail; the whistle by <kbd>Esc</kbd> (the half-typed line kept), by its chip and by <code>WHISTLE mm:ss</code>, refused before the start and on a stopped clock, in the audit trail and replayed after a reload; a league's overtime rules set by preset, a tie that stands with its point and its standings column, an international playoff game with a 10:00 3-on-3 overtime and a five-round shootout, and a game keeping the rules it was created under; a game created and scored, each line recorded, the audit trail naming this computer's lease, the league intact across a reload and across a restart of the host with the same lease, <code>store verify</code> OK; a simulation recorded; two windows racing, the later refused and reloaded; no page or console error.</dd>
 </dl>
 
 <h2 key="reference-tests">The reference edition's tests</h2>
-<p>The engine's own behaviour — the lexer, the frames, the actor's rules, the corrections, replay, the models against SciPy, the heat-map kernels, HK001 against Go, roster import, roles and tenancy, the SSD-RAM ledger's crash cases — is tested in the reference edition {{reference}}. For this issue of the guide its suite was run on its release tree:</p>
-<table class="t" key="tbl-reference-tests" caption="The reference edition's test results for this issue">
+<p>The engine's own behaviour — the lexer, the frames, the actor's rules, the corrections, replay, the models against SciPy, the heat-map kernels, HK001 against Go, roster import, roles and tenancy, the SSD-RAM ledger's crash cases — is tested in the reference edition {{reference}}, on Node.js, which is that edition's runtime and not this one's. Its suite was run on its release tree for revision 1.2 of this guide, with the engine files this release still carries unchanged; revision 1.3 changed only the host and did not run it again:</p>
+<table class="t" key="tbl-reference-tests" caption="The reference edition's test results, revision 1.2">
 <colgroup><col style="width:44%"><col style="width:56%"></colgroup>
 <thead><tr><th>Suite</th><th>Result</th></tr></thead>
 <tbody>
@@ -44,8 +46,9 @@
 </table>
 
 <h2>Running the tests</h2>
-<pre>python -I -B -m unittest discover -s tests -p "test_*.py"                 the whole suite
-python -I -B -m unittest discover -s tests -p "test_store.py" -v         one module, naming each test
-RINKVT_MSSL_VERIFIER=…/VERIFY_MSSL.py python -I -B -m unittest discover -s tests -p "test_*.py"
-RINKVT_SKIP_BROWSER=1 python -I -B -m unittest discover -s tests -p "test_*.py"   without the browser tests</pre>
-<p>The browser tests copy the release to a scratch folder, seal the copy and start its host in a process of its own, so they test the host exactly as a start runs it and leave the working tree untouched.</p>
+<p>The tests are Go tests and run with the Go toolchain, 1.22 or newer, in <code>photon/</code>; nothing else is needed. They are a maintainer's tool: a computer that only runs or verifies the workbench needs neither them nor Go.</p>
+<pre>go test ./...                                         the whole suite
+go test -count=1 -v -run 'TestStore' ./...            one group, naming each test
+RINKVT_SKIP_BROWSER=1 go test ./...                   without the browser tests
+RINKVT_TEST_BROWSER=/path/to/chrome go test ./...     with a browser the tests do not find themselves</pre>
+<p>The browser tests copy the release to a scratch folder, seal the copy and start its host in a process of its own — the test program itself, started again as the host — so they test the host exactly as a start runs it and leave the working tree untouched. <code>contracts qualify</code> runs the whole suite once more, from a clean cache, and writes the qualification record from what the run showed.</p>

@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- RINK-VT 2.5.0-lkvexa.3 · LK/Vexa edition (Photon-hosted) · Copyright (C) 2026 RUSSELL PHILIP SMITHSON · SPDX-License-Identifier: GPL-3.0-only · This program comes with no warranty. It is free software under the GNU General Public License, version 3 only: see LICENSE. -->
+<!-- RINK-VT 2.5.0-lkvexa.4 · LK/Vexa edition (Photon-hosted) · Copyright (C) 2026 RUSSELL PHILIP SMITHSON · SPDX-License-Identifier: GPL-3.0-only · This program comes with no warranty. It is free software under the GNU General Public License, version 3 only: see LICENSE. -->
 <html lang="en">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,7 +10,7 @@
 <link rel="stylesheet" href="/workbench.css">
 
 <header>
-  <h1><b>RINK-VT</b> Workbench</h1><span class="ver">2.5.0-lkvexa.3 · LK/Vexa edition · Photon host</span>
+  <h1><b>RINK-VT</b> Workbench</h1><span class="ver">2.5.0-lkvexa.4 · LK/Vexa edition · Photon host</span>
   <p>One hockey fact per line, in a scorer's language: the engine runs in this window, and the Photon host keeps the league on this computer. Every line is recorded before its result is shown.</p>
 </header>
 <div class="host" id="host" aria-live="polite">
@@ -57,7 +57,7 @@
 
 <footer>
   <div><b>What runs here.</b> The engine of RINK-VT, unchanged: the command language, 64-byte frames, the event-sourced game actor, xG, RAPM, GSAx and GAR, the roster importer and the HK001 port. It runs in this window, which is the renderer; nothing here is Node.js.</div>
-  <div><b>Where the league is.</b> The Photon host, a Python process on this computer, keeps the registry and a hash-chained ledger per game. Each line is on its disk before its result appears; <code>store verify</code> re-reads all of it. Your roster file is read in this window.</div>
+  <div><b>Where the league is.</b> The Photon host, a native program on this computer (no Python, no Node.js), keeps the registry and a hash-chained ledger per game. Each line is on its disk before its result appears; <code>store verify</code> re-reads all of it. Your roster file is read in this window.</div>
   <div><b>Data.</b> The four demonstration clubs and anything simulated are fictional. HK001 is a deterministic synthetic research laboratory. It gives no forecasts, odds, or roster, medical, scouting or officiating advice.</div>
 </footer>
 

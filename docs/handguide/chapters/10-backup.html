@@ -20,7 +20,7 @@
 <ol class="proc">
 <li><p>Stop the host: <b>stop host</b> in the window, or <kbd>Ctrl</kbd>+<kbd>C</kbd> in its console. Every recorded line is already on disk.</p></li>
 <li><p>Copy the data folder, without <code>browser_profile/</code> and <code>.rinkvt.lock</code>, to the backup location, preferably under a name that carries the date: <code>rinkvt-league-2026-11-15</code>.</p></li>
-<li><p>Verify the copy: <code>python photon/rinkvt.py --verify-only --data rinkvt-league-2026-11-15</code>. The league part of the report must say <code>"ok": true</code>.</p></li>
+<li><p>Verify the copy: <code>RINKVT.cmd --verify-only --data rinkvt-league-2026-11-15</code> (<code>./rinkvt.sh</code> on macOS and Linux). The league part of the report must say <code>"ok": true</code>.</p></li>
 <li><p>Keep the copy on a different disk from the original (DAT-01).</p></li>
 </ol>
 <div class="note"><p>A copy taken while a host runs is not a backup to rely on: files are copied at different instants, and a copy may hold a cut-off last line or a pending registry seal. Stop the host first.</p></div>

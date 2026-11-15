@@ -2,45 +2,58 @@
 <p class="lede">A release, and a league, can be checked by anyone holding them, with the release's own tools and no network. This chapter gives the procedure, its acceptance criteria and the maintainer's release procedure.</p>
 
 <h2>The verifier</h2>
-<p><code>VERIFY_RINKVT.cmd</code> (Windows), <code>VERIFY_RINKVT.sh</code> (macOS, Linux) or <code>python -I -B tools/verify.py</code> runs four steps and reports each as PASS or FAIL. The release is <b>VERIFIED</b> only when every step passes.</p>
+<p><code>VERIFY_RINKVT.cmd</code> (Windows) or <code>VERIFY_RINKVT.sh</code> (macOS, Linux) runs the host's <code>verify</code> command ({{ref:native-host}}). It takes five steps, reports each as PASS or FAIL with what failed, and writes nothing. The release is <b>VERIFIED</b> only when every step passes.</p>
 <table class="t" key="tbl-verifier" caption="Steps of the verifier">
-<colgroup><col style="width:6%"><col style="width:24%"><col style="width:70%"></colgroup>
+<colgroup><col style="width:6%"><col style="width:22%"><col style="width:72%"></colgroup>
 <thead><tr><th>#</th><th>Step</th><th>What it checks</th></tr></thead>
 <tbody>
-<tr><td>1</td><td>Release and league</td><td><code>photon/rinkvt.py --verify-only</code>: every file of the release against <code>RELEASE_MANIFEST.json</code> (scope <i>all</i>), and the league in the data folder, read only (skipped with a note while a host holds it)</td></tr>
-<tr><td>2</td><td>Renderer bundle</td><td><code>tools/bundle.py --check</code>: <code>ui/workbench.js</code> and <code>ui/workbench.html</code> are exactly what <code>engine/</code> and <code>ui/</code> give</td></tr>
-<tr><td>3</td><td>Contracts</td><td><code>tools/contracts.py check</code>: every MSSL record valid and current, the qualification for this version and PASS, the JA21 sources well formed, their constants equal to the implementation's ({{ref:contracts}})</td></tr>
-<tr><td>4</td><td>Tests</td><td>The test suite ({{ref:tests}}); the browser tests need Playwright for Python and a Chromium build and are skipped without them</td></tr>
+<tr><td>1</td><td>Release</td><td>Every file of the release, the executables among them, against <code>RELEASE_MANIFEST.json</code> (scope <i>all</i>): the lists of missing, changed and unlisted files must be empty</td></tr>
+<tr><td>2</td><td>Renderer bundle</td><td><code>ui/workbench.js</code> and <code>ui/workbench.html</code> are exactly what <code>engine/</code> and <code>ui/</code> give, rebuilt in memory ({{ref:bundle}})</td></tr>
+<tr><td>3</td><td>Contracts</td><td>Every MSSL record valid and current, the qualification for this version and PASS, the JA21 sources well formed, their constants equal to the implementation's ({{ref:contracts}})</td></tr>
+<tr><td>4</td><td>Host self-test</td><td>The host checks itself in a scratch folder it removes afterwards: the CRC-32C check value; the device key and the lease vectors ({{ref:lease-vectors}}); a device file; a league written, reopened and verified, then damaged by one changed digit, which must be found; and, on a loopback listener of its own, the API's refusals (421, 403, 415, 400, 409, 405) and a commit round trip</td></tr>
+<tr><td>5</td><td>League</td><td>The league in the data folder, read only: every seal and chain (skipped with a note while a host holds it); then this laptop's device and pinned address</td></tr>
 </tbody>
 </table>
-<p>Options: <code>--data DIR</code> checks another data folder; <code>--mssl-verifier PATH</code> also runs the MSSL Writers Corpus validator on every record; <code>--quick</code> leaves out the browser tests.</p>
+<p>Options: <code>--data DIR</code> checks another data folder; <code>--device-file FILE</code> reads another device file. The report begins with the version and the executable that made it:</p>
+<pre>RINK-VT {{version}} · LK/Vexa edition (Photon-hosted) · Photon host · native windows/amd64 executable · no Python, no Node.js
+[1] release (… files against RELEASE_MANIFEST.json): PASS
+[2] renderer bundle: PASS
+[3] contracts ({{n_records}} MSSL records, {{n_ja}} JA21 sources, constants cross-checked): PASS
+[4] host self-test (store, leases, device, HTTP guards): PASS
+[5] league (12 games): PASS
+    this laptop: device 786ccb4a · pinned 127.26.220.77
+
+RINK-VT LK/Vexa edition: VERIFIED</pre>
+<p>The verifier does not run the test suite: the tests are Go tests and need the Go toolchain, which a computer that runs the workbench does not need and need not have. Their result is the qualification record, which step 3 requires to name this version with the result PASS; a maintainer runs them again with <code>contracts qualify</code> ({{ref:tests}}).</p>
 
 <h2>Procedure</h2>
 <ol class="proc">
 <li><p>Obtain the release from its source, keeping its bytes ({{ref:getting-started}}).</p></li>
-<li><p>Run the verifier. With the MSSL corpus at hand, add <code>--mssl-verifier &lt;corpus&gt;/tools/VERIFY_MSSL.py</code>.</p></li>
-<li><p>Read the report. Step 1 names any changed, missing or unlisted file and any damaged league file; step 3 names any record or source that fails; step 4 names any failing test.</p></li>
+<li><p>Run the verifier: <code>VERIFY_RINKVT.cmd</code>, or <code>./VERIFY_RINKVT.sh</code>.</p></li>
+<li><p>Read the report. Step 1 names any changed, missing or unlisted file; step 3 any record or source that fails; step 4 any check of the host that fails; step 5 any damaged league file and line.</p></li>
 <li><p>Keep the report with the release, and the league's verification report with each backup.</p></li>
+<li><p>To check that the executables are those of the sources, rebuild them with the Go version that built them and compare their digests with the manifest ({{ref:build-from-source}}).</p></li>
 </ol>
 
 <h2>Acceptance criteria</h2>
 <div class="reqs">
-<div class="req"><span class="rid">VER-01</span><span>Step 1 reports <code>"ok": true</code> for the release, with empty <code>missing</code>, <code>changed</code> and <code>unlisted</code> lists.</span></div>
-<div class="req"><span class="rid">VER-02</span><span>Step 1 reports <code>"ok": true</code> for the league, or that there is no league yet.</span></div>
-<div class="req"><span class="rid">VER-03</span><span>Step 2 reports that the bundle matches its sources.</span></div>
+<div class="req"><span class="rid">VER-01</span><span>Step 1 reports PASS: no missing, changed or unlisted file.</span></div>
+<div class="req"><span class="rid">VER-02</span><span>Step 5 reports PASS for the league, or that there is no league yet.</span></div>
+<div class="req"><span class="rid">VER-03</span><span>Step 2 reports PASS: the bundle matches its sources.</span></div>
 <div class="req"><span class="rid">VER-04</span><span>Step 3 reports PASS for every record and source, and the qualification names this version with the result PASS.</span></div>
-<div class="req"><span class="rid">VER-05</span><span>Step 4 reports no failure and no error. Skipped tests are acceptable only when their reason is that an optional tool (Playwright, the corpus validator) is absent, and the report then does not cover what they test.</span></div>
+<div class="req"><span class="rid">VER-05</span><span>Step 4 reports PASS. The qualification record's scope says what its test run did not cover (the browser tests where no browser was available, other platforms); the release is qualified for what it covered only.</span></div>
 </div>
 
 <h2 key="release-procedure">The release procedure</h2>
-<p>A maintainer who changes the release makes a new one in this order, because each step seals what the steps before it produced.</p>
+<p>A maintainer who changes the release makes a new one in this order, because each step seals what the steps before it produced. The commands are the host's, run through <code>RINKVT.cmd</code> or <code>./rinkvt.sh</code>.</p>
 <ol class="proc">
-<li><p><b>Change</b> the sources (<code>photon/</code>, <code>ui/</code>, <code>engine/</code>, <code>tools/</code>, <code>tests/</code>, <code>contracts</code> table in <code>tools/contracts.py</code>) and, if the version changes, <code>photon/host/__init__.py</code>.</p></li>
-<li><p><b>Bundle:</b> <code>python -I -B tools/bundle.py</code>.</p></li>
-<li><p><b>Write the contracts:</b> <code>python -I -B tools/contracts.py write</code>.</p></li>
-<li><p><b>Qualify:</b> <code>python -I -B tools/contracts.py qualify</code> runs the whole test suite and writes <code>contracts/mssl/90_qualification.mssl</code> from its result. It must say PASS.</p></li>
-<li><p><b>Build the handguide</b> if anything it describes changed: <code>python docs/handguide/build.py</code>.</p></li>
-<li><p><b>Seal:</b> <code>python -I -B tools/seal_release.py</code> writes <code>RELEASE_MANIFEST.json</code>.</p></li>
+<li><p><b>Change</b> the sources (<code>photon/*.go</code>, <code>ui/</code>, <code>engine/</code>, the contract table in <code>photon/contracts_table.go</code>) and, if the version changes, <code>photon/version.go</code>.</p></li>
+<li><p><b>Build the executables:</b> <code>photon/build.cmd</code> or <code>photon/build.sh</code> ({{ref:build-from-source}}).</p></li>
+<li><p><b>Bundle:</b> <code>bundle</code>.</p></li>
+<li><p><b>Write the contracts:</b> <code>contracts write</code>.</p></li>
+<li><p><b>Qualify:</b> <code>contracts qualify</code> runs the whole test suite (<code>go test -count=1 -v ./...</code> in <code>photon/</code>) and writes <code>contracts/mssl/90_qualification.mssl</code> from its result. It must say PASS.</p></li>
+<li><p><b>Print the handguide</b> if anything it describes changed: <code>handguide</code> ({{ref:handguide-build}}).</p></li>
+<li><p><b>Seal:</b> <code>seal</code> writes <code>RELEASE_MANIFEST.json</code>.</p></li>
 <li><p><b>Verify:</b> run the verifier on a fresh copy of the release, and publish the release with its report.</p></li>
 </ol>
 <div class="reqs">
@@ -49,3 +62,10 @@
 <div class="req"><span class="rid">MNT-03</span><span>A maintainer SHOULD change the engine only in the reference edition and carry the change over, so that the two editions keep one engine.</span></div>
 <div class="req"><span class="rid">MNT-04</span><span>A change to a file format MUST change its format identifier (<code>rinkvt.registry.v1</code>, <code>rinkvt.vec1-ledger.v1</code>, the lease format number) and say how a league is brought over.</span></div>
 </div>
+
+<h2 key="build-from-source">Building the executables</h2>
+<p>The release carries the executables, so building them is for maintainers only. <code>photon/build.cmd</code> (Windows) or <code>photon/build.sh</code> (macOS, Linux) builds all six with the Go toolchain, version 1.22 or newer, from go.dev: with <code>CGO_ENABLED=0</code>, so that no C compiler is involved and no C library is linked in; with <code>-trimpath</code>, so that no path of the building computer is recorded; and with <code>-ldflags "-s -w -buildid="</code>, so that there is no symbol table and no build identifier. The macOS executables for Apple silicon carry the ad-hoc signature the Go linker gives them, which that system requires; no executable is signed by a publisher.</p>
+<p>The build is reproducible: the same sources and the same Go version give the same bytes, on any computer. The executables of this release were built with {{go_version}}, which <code>go version</code> names when given any of them. Anyone can therefore check a release's executables against its sources: rebuild them with that version and compare their SHA-256 digests with <code>RELEASE_MANIFEST.json</code>. After a deliberate change, <code>seal</code> records the new digests.</p>
+
+<h2 key="handguide-build">Printing this guide</h2>
+<p>The host's <code>handguide</code> command prints this guide to <code>docs/handguide/RINK-VT_Handguide.pdf</code> from its sources — the chapters in <code>docs/handguide/chapters/</code> and the stylesheet — with the installed Edge, Chrome or Chromium, which it drives without a window over the browser's DevTools protocol; <code>RINKVT_BROWSER</code> names another. It reads the engine's tables by running the bundle in the browser, the test inventory from <code>photon/*_test.go</code> and the records from <code>contracts/</code>; prints the document until the page numbers of the contents and the cross-references settle; prints the running headers and footers as a second document and draws each of its pages over the matching page, marked as an artifact so that the document's tagged structure is unchanged; and adds the page labels, the bookmarks and the document information. <code>--out FILE</code> writes the guide elsewhere and <code>--html FILE</code> also writes the composed page. This revision was printed by {{chromium}}.</p>

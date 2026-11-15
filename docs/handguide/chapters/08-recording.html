@@ -82,7 +82,7 @@
 <div class="warning"><p>An edited file is damage. Editing a ledger or the registry by hand — even to "fix" it — makes the league refuse to open. Restore from a backup instead ({{ref:recovery}}).</p></div>
 
 <h2 key="verification-report">Verification</h2>
-<p>Two commands re-read a league from disk and check every seal and chain, repairing nothing: <code>store verify</code> in the window (and the strip's <b>verify store</b>), which asks the running host, and <code>photon/rinkvt.py --verify-only --data DIR</code>, which checks a folder no host has open — a backup, a copy — and skips the league with a note when a host holds it. Their report has the following parts.</p>
+<p>Two commands re-read a league from disk and check every seal and chain, repairing nothing: <code>store verify</code> in the window (and the strip's <b>verify store</b>), which asks the running host, and <code>RINKVT.cmd --verify-only --data DIR</code> (<code>./rinkvt.sh</code> on macOS and Linux), which checks a folder no host has open — a backup, a copy — and skips the league with a note when a host holds it. Their report has the following parts.</p>
 <table class="t" key="tbl-verify-report" caption="The verification report">
 <colgroup><col style="width:22%"><col style="width:78%"></colgroup>
 <thead><tr><th>Part</th><th>Contents</th></tr></thead>
@@ -99,7 +99,7 @@
 <h2 key="recovery">Recovery procedures</h2>
 <h3>A league that refuses to open</h3>
 <ol class="proc">
-<li><p>Run <code>python photon/rinkvt.py --verify-only --data DIR</code> and keep the report: it names every damaged file and line.</p></li>
+<li><p>Run <code>RINKVT.cmd --verify-only --data DIR</code> (<code>./rinkvt.sh --verify-only --data DIR</code> on macOS and Linux) and keep the report: it names every damaged file and line.</p></li>
 <li><p>Move the damaged data folder aside; do not delete it.</p></li>
 <li><p>Restore the most recent backup of the data folder ({{ref:backup}}) to its place, and verify it the same way.</p></li>
 <li><p>Start the host. Lines recorded after the backup are not in the restored league; enter them again from the paper record or the scorer's notes.</p></li>

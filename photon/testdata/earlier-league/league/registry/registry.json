@@ -1,0 +1,19 @@
+{
+ "schema": "rinkvt.registry.v1",
+ "seq": 1,
+ "leagues": [],
+ "teams": [
+  {
+   "code": "ZO\u00cbL",
+   "name": "Zo\u00eb \u00c5ngstr\u00f6m \u2014 \u201cquoted\u201d \ud83c\udfd2"
+  }
+ ],
+ "players": [],
+ "games": [
+  {
+   "key": "G1",
+   "uuid": "6e49bb4c-fe72-5a8b-b7cd-d994a098368e"
+  }
+ ],
+ "notes": []
+}

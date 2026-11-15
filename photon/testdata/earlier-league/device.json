@@ -1,0 +1,11 @@
+{
+ "address": "127.26.220.77",
+ "created": "2026-11-15T20:10:28Z",
+ "device": "device:786ccb4ad0fe713fbca602c54b373160",
+ "fleet": "C:\\Users\\Zo\u00eb\\fleet",
+ "format": "rinkvt.device.v1",
+ "pinned": "2026-11-15T20:10:28Z",
+ "pool": "127.16.0.0/12",
+ "seal": "4eef16200f7519b9",
+ "source": "machine"
+}

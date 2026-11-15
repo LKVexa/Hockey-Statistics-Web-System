@@ -1,8 +1,8 @@
 <h1 key="contracts">Contracts</h1>
-<p class="lede">The edition describes its components in the LK/Vexa languages: {{n_records}} MSSL records and {{n_ja}} JA21 sources. The descriptions are checked — against the languages' own rules, against the user's own validators, and against the implementation — and they claim no more than their evidence.</p>
+<p class="lede">The edition describes its components in the LK/Vexa languages: {{n_records}} MSSL records and {{n_ja}} JA21 sources. The descriptions are checked — against the languages' own rules and against the implementation, by the host's own <code>contracts</code> command — and they claim no more than their evidence.</p>
 
 <h2>Why contracts</h2>
-<p>A contract states, in a form a machine can check, what a component promises: its interfaces, its invariants, its limits and its maturity. The code is the authority on behaviour; the contract is the authority on what is promised, and the check ties the two together so that neither drifts from the other unnoticed. Appendix F lists every record with its seal and prints the suite's identity record and the four JA21 sources in full.</p>
+<p>A contract states, in a form a machine can check, what a component promises: its interfaces, its invariants, its limits and its maturity. The code is the authority on behaviour; the contract is the authority on what is promised, and the check ties the two together so that neither drifts from the other unnoticed. Appendix F lists every record with its seal and prints the suite's identity record and the {{n_ja}} JA21 sources in full.</p>
 
 <h2 key="mssl">MSSL records</h2>
 <p>The records are MSSL 0.3 documents of the observed <code>module</code>/<code>learn</code> subset described by the MSSL Writers Corpus 1.0.0, profile <code>basic_mssl.executable.3</code>. Each has the thirteen fields in their invariant order:</p>
@@ -18,7 +18,7 @@
 <colgroup><col style="width:30%"><col style="width:30%"><col style="width:40%"></colgroup>
 <thead><tr><th>Record</th><th>Module</th><th>States</th></tr></thead>
 <tbody>
-<tr><td><code>00_suite_identity.mssl</code></td><td><code>rinkvt.lkvexa.suite</code></td><td>Product, versions, runtime (no Node.js), components, JA sources, licence, maturity</td></tr>
+<tr><td><code>00_suite_identity.mssl</code></td><td><code>rinkvt.lkvexa.suite</code></td><td>Product, versions, runtime (native executables; no Python, no Node.js), components, JA sources, licence, maturity</td></tr>
 <tr><td><code>10_photon_host.mssl</code></td><td><code>rinkvt.lkvexa.photon_host</code></td><td>Routes, guards, invariants, the state model, exit codes</td></tr>
 <tr><td><code>20_league_store.mssl</code></td><td><code>rinkvt.lkvexa.league_store</code></td><td>The commit contract, files, seals, recovery, limits</td></tr>
 <tr><td><code>30_loopback_leases.mssl</code></td><td><code>rinkvt.lkvexa.loopback_leases</code></td><td>Per-laptop addresses: the device key, machine identifiers, the device file, the pin, the fleet register; pool, slot function, keys, formats 1 and 2, refusals</td></tr>
@@ -28,10 +28,10 @@
 <tr><td><code>90_qualification.mssl</code></td><td><code>rinkvt.lkvexa.qualification</code></td><td>The qualification of the release, from a test run</td></tr>
 </tbody>
 </table>
-<p>Records 00 to 60 are written by <code>tools/contracts.py write</code> from one table in that file, so a changed promise is a changed table entry, reviewed as code is.</p>
+<p>Records 00 to 60 are written by the host's <code>contracts write</code> from one table, in <code>photon/contracts_table.go</code>, so a changed promise is a changed table entry, reviewed as code is.</p>
 
 <h2 key="qualification">The qualification record</h2>
-<p><code>tools/contracts.py qualify</code> runs the whole test suite in a fresh interpreter and writes record 90 from what the run showed: the target (the version and the engine version), the result — <code>PASS</code> only when every test passed, <code>BLOCKED</code> otherwise — the numbers of checks, passes, skips and failures, the test modules covered, the command that ran them, the platform (system, release, machine and Python version), the time, and the scope: whether the browser tests ran and in which Chromium, and that other operating systems are not qualified by the record. The record of this release says: <i>{{q_result}}, {{q_checks}} checks, on {{q_platform}}</i>.</p>
+<p>The host's <code>contracts qualify</code> runs the whole test suite — <code>go test -count=1 -v ./...</code> in <code>photon/</code>, so no cached result is reused — and writes record 90 from what the run showed: the target (the version and the engine version), the result — <code>PASS</code> only when every test passed, <code>BLOCKED</code> otherwise — the numbers of checks, passes, skips and failures, the test files covered, the command that ran them, the platform (the system, its processor and the Go version), the time, and the scope: whether the browser tests ran and in which browser, and that other operating systems are not qualified by the record. Because it runs the tests, it needs the Go toolchain; no other command of the host does. The record of this release says: <i>{{q_result}}, {{q_checks}} checks, on {{q_platform}}</i>.</p>
 
 <h2 key="ja21">JA21 sources</h2>
 <p>The JA21 sources are JA Core 0.3 programs in the provisional grammar of the JA21 JA Core Application Language Suite 1.0.0: the source header <code>ja source 0.3</code>, a <code>module</code>, <code>use Core</code>, <code>policy no_network</code>, then constants, records, enums and functions with effect clauses, and top-level assertions on sample values.</p>
@@ -47,13 +47,13 @@
 </tbody>
 </table>
 <div class="note"><p>The JA21 sources are modeled contracts. The JA21 suite supplies no JA Core parser, compiler or virtual machine, and this edition does not claim one: nothing executes these files, and the operations they call (<code>Sha256.hex</code>, <code>Crc32c.of</code> and the like) name the implementation's operations rather than a library that exists in JA Core.</p></div>
-<p>What makes them more than prose is the cross-check: every constant they state — the CRC-32C check value, the meta-line magic, the default pool and its capacity, the first lease of 203.0.113.5, a device key and its first address, the store's registry and ledger limits, the token header and the body limit — is compared by <code>tools/contracts.py check</code> with the value the running implementation holds, and a difference fails the check.</p>
+<p>What makes them more than prose is the cross-check: every constant they state — the CRC-32C check value, the meta-line magic, the default pool and its capacity, the first lease of 203.0.113.5, a device key and its first address, the store's registry and ledger limits, the token header and the body limit — is compared by <code>contracts check</code> with the value the running implementation holds, and a difference fails the check.</p>
 
-<h2 key="checking-contracts">Checking with the corpus validators</h2>
+<h2 key="checking-contracts">Checking the contracts</h2>
 <ol class="proc">
-<li><p><code>python -I -B tools/contracts.py check</code> validates every record with the release's own implementation of the corpus's single-document rules, compares records 00–60 with what the generator writes, checks the qualification, checks the JA sources and cross-checks their constants — among them the clock bytes of <code>START</code> and <code>WHISTLE</code>, read from the engine's wire format, and the six overtime presets and the built-in rules, read from the engine's <code>overtime.js</code>.</p></li>
-<li><p>Add <code>--mssl-verifier &lt;MSSL_WRITERS_CORPUS_1.0.0&gt;/tools/VERIFY_MSSL.py</code> to have the corpus's own validator (its <code>validate_source</code>) check every record as well. The validator is loaded from the user's copy of the corpus and only reads.</p></li>
-<li><p>The JA sources are checked as the JA Core suite's <code>tools/validate_suite.py</code> checks the suite's own scripts — the source header, <code>module</code>, <code>policy no_network</code>, balanced braces — and, in addition, line 1 must be the header, line 2 the module, every top-level line a declaration or statement of the provisional grammar, brackets and parentheses balanced, and no tab used.</p></li>
+<li><p><code>RINKVT.cmd contracts check</code> (<code>./rinkvt.sh contracts check</code> on macOS and Linux; <code>VERIFY_RINKVT</code> runs the same check as its step 3) validates every record by the corpus's single-document rules — the envelope, the thirteen fields in their order, each field's JSON value, the seal — compares records 00–60 with what the table writes, checks the qualification, checks the JA sources and cross-checks their constants — among them the clock bytes of <code>START</code> and <code>WHISTLE</code>, read from the engine's wire format, and the six overtime presets and the built-in rules, read from the engine's <code>overtime.js</code>.</p></li>
+<li><p>The corpus's own validator (<code>validate_source</code> in its <code>tools/VERIFY_MSSL.py</code>) is a Python program, and this edition has no Python: the host applies the same single-document rules itself and neither ships nor calls that program. The records are written in the corpus's format, so anyone who has the corpus can apply its validator to <code>contracts/mssl/</code> as well.</p></li>
+<li><p>The JA sources are checked by the rules the JA Core suite's validator applies to the suite's own scripts — the source header, <code>module</code>, <code>policy no_network</code>, balanced braces — and, in addition, line 1 must be the header, line 2 the module, every top-level line a declaration or statement of the provisional grammar, brackets and parentheses balanced, and no tab used.</p></li>
 </ol>
 
 <h2 key="honesty">The honesty rule</h2>

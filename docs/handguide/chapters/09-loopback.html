@@ -62,7 +62,7 @@ first address = the address at slot(key); if another key holds it, the next slot
 <p>A league's lease table guarantees uniqueness among the laptops that have used that league. A club or league whose laptops should never meet on one address, whichever leagues they open, enrols them in a <b>fleet register</b>: one lease table they all share, on a network share or on a removable disk that travels between them.</p>
 <ol class="proc">
 <li><p>Choose the register's place, a folder every laptop can reach and write: <code>\\server\rinkvt\fleet-leases</code> or <code>E:\rinkvt\fleet-leases</code>. The folder must exist; the host never creates a register's folder.</p></li>
-<li><p>On each laptop, start the host once with <code>--fleet</code> naming the register, or enrol it without starting the workbench: <code>python tools/leases.py --enroll E:\rinkvt\fleet-leases</code>.</p></li>
+<li><p>On each laptop, start the host once with <code>--fleet</code> naming the register, or enrol it without starting the workbench: <code>RINKVT.cmd leases --enroll E:\rinkvt\fleet-leases</code> (<code>./rinkvt.sh leases …</code> on macOS and Linux).</p></li>
 <li><p>The register gives the laptop its pinned address if no other laptop holds it there, else the next free one, and the laptop pins the result. Each allocation takes the register's exclusive lock and re-reads it first, so two laptops enrolling at once never receive one address.</p></li>
 <li><p>The device file remembers the register. Later starts consult it whenever it can be reached; when it cannot — the laptop is at the arena, the disk is in another bag — the pinned address is used, and the report says that the register was unreachable.</p></li>
 </ol>
@@ -124,8 +124,9 @@ first address = the address at slot(key); if another key holds it, the next slot
 <p>In the pool <code>127.200.0.0/24</code>, the clients <code>192.0.2.0</code> to <code>192.0.2.5</code>, leased in that order, receive <code>.83</code>, <code>.253</code>, <code>.225</code>, <code>.55</code>, <code>.198</code> and <code>.199</code>: the sixth client's first choice is .198, the fifth's address, so it moved to the next free one.</p>
 
 <h2 key="leases-tool">Reading and enrolling</h2>
-<pre>python tools/leases.py --this-laptop                      this laptop's device, pinned address and fleet register
-python tools/leases.py --enroll FLEET_FILE                enrol this laptop in a fleet register and pin its address
-python tools/leases.py [--data DIR | --file FILE]         a lease table or register: format, pool, every lease
-python tools/leases.py --file FLEET_FILE device:786c…     the address a device key or an IP address holds there</pre>
+<p>The host's <code>leases</code> command reads lease tables and enrols a laptop; on Windows it is run as <code>RINKVT.cmd leases …</code>, on macOS and Linux as <code>./rinkvt.sh leases …</code>.</p>
+<pre>RINKVT.cmd leases --this-laptop                      this laptop's device, pinned address and fleet register
+RINKVT.cmd leases --enroll FLEET_FILE                enrol this laptop in a fleet register and pin its address
+RINKVT.cmd leases [--data DIR | --file FILE]         a lease table or register: format, pool, every lease
+RINKVT.cmd leases --file FLEET_FILE device:786c…     the address a device key or an IP address holds there</pre>
 <p>Only <code>--enroll</code> writes: one lease line in the register, and the pin in this laptop's device file. Leases never change or expire.</p>

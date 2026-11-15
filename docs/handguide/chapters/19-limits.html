@@ -3,7 +3,9 @@
 
 <h2>Platforms</h2>
 <ul>
-<li>The release is qualified on the platform its qualification record names ({{q_platform}}). The launchers for Windows (<code>START_RINKVT.cmd</code>, <code>VERIFY_RINKVT.cmd</code>) and the behaviour on macOS are written for those systems from their documented behaviour — Windows answering on all of 127.0.0.0/8, macOS only on 127.0.0.1 — but were not executed for this release.</li>
+<li>The release is qualified on the platform its qualification record names ({{q_platform}}). The executables for the other five platforms are built from the same sources by the same compiler, and the launchers for Windows (<code>START_RINKVT.cmd</code>, <code>VERIFY_RINKVT.cmd</code>, <code>RINKVT.cmd</code>) and the behaviour on macOS are written for those systems from their documented behaviour — Windows answering on all of 127.0.0.0/8, macOS only on 127.0.0.1 — but none of them was executed for this release.</li>
+<li>The executables are not code-signed by a publisher. Windows SmartScreen and macOS Gatekeeper question them on a first start, and an organisation's application control may refuse them outright; their digests in the release manifest, and a rebuild from source, are the way to establish what they are ({{ref:build-from-source}}).</li>
+<li>The release carries the host for 64-bit systems only: Windows 10 and 11, macOS 11 and newer, and Linux, each on x64 or ARM64. A 32-bit Windows is refused by the launchers.</li>
 <li>On macOS the host listens on 127.0.0.1 unless the laptop's address is added as an alias; the address is leased and recorded either way.</li>
 <li>Uniqueness of the laptops' addresses everywhere rests on a fleet register they share. Without one, two laptops are unique in every league they both use, and may — about once in a million pairs — hold the same address in two separate leagues.</li>
 <li>A reinstall of Windows or Linux changes the machine identifier, and the laptop becomes a new device with a new address; the audit trail keeps the old one on earlier lines.</li>

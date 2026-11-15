@@ -4,7 +4,7 @@
 <dt>Assistant</dt><dd>The part of the engine that classifies a line as it is typed and offers ghost text and candidates.</dd>
 <dt>Audit trail</dt><dd>Every line of a game with its operator, source, loopback address and outcome (<code>Q AUDIT</code>).</dd>
 <dt>Base</dt><dd>The registry seal a window last saw, carried by each commit; a stale base is refused.</dd>
-<dt>Bundle</dt><dd><code>ui/workbench.js</code>: the module loader holding the engine, the rink drawing and the page, built by <code>tools/bundle.py</code>.</dd>
+<dt>Bundle</dt><dd><code>ui/workbench.js</code>: the module loader holding the engine, the rink drawing and the page, built by the host's <code>bundle</code> command.</dd>
 <dt>Capacity</dt><dd>The number of addresses a lease pool holds: 254 per /24 it contains.</dd>
 <dt>Chain</dt><dd>The sequence of hashes linking every line of a ledger to the line before; its last hash is the tip.</dd>
 <dt>Commit</dt><dd>One request by which the window sends the host what a command changed; recorded before it is answered.</dd>
@@ -15,15 +15,17 @@
 <dt>Edition</dt><dd>One of the two forms of RINK-VT: the LK/Vexa edition (Photon-hosted) and the reference edition (HERMIT).</dd>
 <dt>Engine</dt><dd>The language, frames, actor, queries, models, roster importer and HK001 port, shared by both editions.</dd>
 <dt>Event ledger</dt><dd><code>events.jsonl</code>: the host's own hash-chained record of starts, commits and stops.</dd>
+<dt>Executable</dt><dd>The Photon host built for one platform: one of the six files in <code>photon/bin/</code>, which a launcher starts ({{ref:native-host}}).</dd>
 <dt>Frame</dt><dd>A 64-byte record of one fact, the unit the ledger keeps ({{ref:frame}}).</dd>
 <dt>Genesis</dt><dd>The hash that precedes a ledger's first line, derived from the game's key and UUID.</dd>
 <dt>HK001</dt><dd>A deterministic synthetic research laboratory (MSSL 2.3.0), ported exactly from Go; 563 computation codes and 109 inputs.</dd>
-<dt>Host</dt><dd>Here, the Photon host: the Python program that keeps the league and serves the workbench.</dd>
+<dt>Host</dt><dd>Here, the Photon host: the native program — one executable per platform in <code>photon/bin/</code> — that keeps the league and serves the workbench.</dd>
 <dt>JA21</dt><dd>The JA21 language suites; here, JA Core 0.3 in its provisional grammar, used for modeled contracts.</dd>
 <dt>Device file</dt><dd>The per-user file in which a laptop keeps its device key, its pinned address and its fleet register ({{ref:device-file}}).</dd>
 <dt>Device key</dt><dd>A laptop's identity: <code>device:</code> and 32 hex digits, an HMAC-SHA-256 digest of its machine identifier.</dd>
 <dt>Fleet register</dt><dd>A lease table every laptop of a club or league shares, which makes their addresses unique everywhere ({{ref:fleet}}).</dd>
 <dt>Key</dt><dd>What a lease belongs to: a laptop's device key, or, in the reference edition, the canonical text of an IP address.</dd>
+<dt>Launcher</dt><dd><code>START_RINKVT</code>, <code>VERIFY_RINKVT</code>, <code>RINKVT.cmd</code> or <code>rinkvt.sh</code>: a script that starts the executable for the computer it runs on, with the arguments it was given.</dd>
 <dt>Lease</dt><dd>The static loopback address a laptop (in the reference edition, a client IP address) receives and keeps.</dd>
 <dt>Machine identifier</dt><dd>The operating system's own identifier of the computer (MachineGuid, IOPlatformUUID, machine-id), read but never stored.</dd>
 <dt>Ledger</dt><dd>A game's append-only record of frame and meta-line pairs.</dd>
@@ -36,10 +38,10 @@
 <dt>Overtime rules</dt><dd>What decides a game level after regulation: the overtime's length and strength and the shootout's rounds, in a regular and a playoff block; set per league, copied into each game at its creation ({{ref:overtime}}).</dd>
 <dt>Pin</dt><dd>The address a laptop keeps in its device file and asks for in every lease table it meets ({{ref:pin}}).</dd>
 <dt>Pair</dt><dd>A frame and its meta line: 128 bytes, one line of a ledger file.</dd>
-<dt>Photon</dt><dd>VEC1 Photon: the design of a Python control plane with a Chromium-family renderer that this edition's host follows.</dd>
+<dt>Photon</dt><dd>VEC1 Photon: the design of a control plane with a Chromium-family renderer that this edition's host follows. VEC1 Photon's control plane is a Python program; this edition's is a native program written in Go.</dd>
 <dt>Pool</dt><dd>The part of 127.0.0.0/8 from which leases are drawn; by default 127.16.0.0/12.</dd>
 <dt>Preset</dt><dd>A named set of overtime rules: <code>standard</code>, <code>four-on-four</code>, <code>international</code>, <code>overtime-then-tie</code>, <code>shootout-only</code>, <code>ties</code>.</dd>
-<dt>Qualification</dt><dd>The record of a test run of the release, written by <code>tools/contracts.py qualify</code>.</dd>
+<dt>Qualification</dt><dd>The record of a test run of the release, written by the host's <code>contracts qualify</code>.</dd>
 <dt>Registry</dt><dd>The sealed JSON document of leagues, teams, players, games and notes.</dd>
 <dt>Renderer</dt><dd>The browser window in which the workbench and the engine run.</dd>
 <dt>RINK mode</dt><dd>The mode of the command line in which lines of the scorer's language are scored into the selected game.</dd>

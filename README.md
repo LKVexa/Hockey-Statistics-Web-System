@@ -1,6 +1,6 @@
 # RINK-VT Workbench — LK/Vexa edition
 
-**2.5.0-lkvexa.3 · Photon-hosted · no Node.js · GPL-3.0-only**
+**2.5.0-lkvexa.4 · Photon-hosted · no Python, no Node.js · GPL-3.0-only**
 
 RINK-VT is a hockey statistics workbench. A scorer types one fact per line in a scorer's language —
 `FOCO SMIT G/2P` — and the line becomes one or more 64-byte frames that an event-sourced game actor applies. Box
@@ -8,21 +8,26 @@ scores, expected goals, stints, RAPM, GSAx, GAR/WAR, NHLe and heat maps are comp
 HK001 computation is a command of its own.
 
 This is the **LK/Vexa ecosystem edition**. It runs the engine of RINK-VT 2.5.0-rinkvt.1 (the reference edition, the
-HERMIT gateway on Node.js) in a browser window, and replaces Node.js with a **Photon host**: a small Python program,
-standard library only, that serves the workbench on this computer's own static loopback address, keeps the league on
-disk in sealed, hash-chained files, and opens the window. The components carry contracts in the LK/Vexa languages:
-MSSL records and JA21 sources, checked by the tools in this repository and by the MSSL corpus validator.
+HERMIT gateway on Node.js) in a browser window, and replaces Node.js with a **Photon host**: a native program — one
+executable per platform in `photon/bin/`, written in Go with its standard library only — that serves the workbench on
+this computer's own static loopback address, keeps the league on disk in sealed, hash-chained files, and opens the
+window. **There is no Python and no Node.js anywhere in this edition, and nothing to install.** The components carry
+contracts in the LK/Vexa languages: MSSL records and JA21 sources, written and checked by the host's own `contracts`
+command.
 
 The handguide — the full technical and operating manual for both editions, document RVT-HG-001 — is
-[`docs/handguide/RINK-VT_Handguide.pdf`](docs/handguide/RINK-VT_Handguide.pdf). `python docs/handguide/build.py` rebuilds it from
-its sources with Chromium (Playwright for Python) and pypdf; its appendices are generated from the release itself.
+[`docs/handguide/RINK-VT_Handguide.pdf`](docs/handguide/RINK-VT_Handguide.pdf). `RINKVT.cmd handguide` (or
+`./rinkvt.sh handguide`) rebuilds it from its sources with an installed Edge, Chrome or Chromium; its appendices are
+generated from the release itself.
 
 All clubs, players and games shipped with it are fictional demonstration data. HK001 is a deterministic synthetic
 research laboratory; it gives no forecasts, odds, or roster, medical, scouting or officiating advice.
 
 ## Requirements
 
-- **Python 3.10 or newer.** Nothing else is installed: the host uses the standard library only.
+- **Nothing to install.** The release carries the Photon host for 64-bit Windows 10 and 11 (x64 and ARM64), macOS 11
+  or newer (Apple silicon and Intel) and 64-bit Linux (x64 and ARM64); the launchers pick the one for this computer.
+  No Python, no Node.js, no runtime of any kind.
 - **Microsoft Edge, Google Chrome or Chromium**, for the window. The host opens it in app mode with a profile of its
   own (no extensions, cookies or sessions of your ordinary browser). Without one, it prints the address to open, and
   `--allow-default-browser-fallback` uses your ordinary browser instead.
@@ -30,16 +35,21 @@ research laboratory; it gives no forecasts, odds, or roster, medical, scouting o
 
 ## Start
 
-| System | Start | Verify |
-|---|---|---|
-| Windows | double-click `START_RINKVT.cmd` | `VERIFY_RINKVT.cmd` |
-| macOS, Linux | `./START_RINKVT.sh` | `./VERIFY_RINKVT.sh` |
-| any | `python -I -B photon/rinkvt.py` | `python -I -B tools/verify.py` |
+| System | Start | Verify | Any other command |
+|---|---|---|---|
+| Windows | double-click `START_RINKVT.cmd` | `VERIFY_RINKVT.cmd` | `RINKVT.cmd help` |
+| macOS, Linux | `./START_RINKVT.sh` | `./VERIFY_RINKVT.sh` | `./rinkvt.sh help` |
+
+The `.cmd` and `.sh` files are launchers: each picks the executable for this computer in `photon/bin/` and starts it
+with the arguments it was given. **The first time on Windows**, SmartScreen may say it protected the PC from an
+unrecognised app: the executables are not code-signed. Choose **More info**, then **Run anyway** — or, before
+unpacking, right-click the downloaded zip, choose **Properties** and tick **Unblock**. **On macOS**, a release
+downloaded with a browser is quarantined; clear that once with `xattr -dr com.apple.quarantine` on the release folder.
 
 The host prints what it did and the address it serves, then opens the workbench:
 
 ```
-RINK-VT 2.5.0-lkvexa.3 · LK/Vexa edition (Photon-hosted)
+RINK-VT 2.5.0-lkvexa.4 · LK/Vexa edition (Photon-hosted)
   loopback 127.26.220.77 · static for this laptop (device 786ccb4a)
   workbench  http://127.20.66.113:8800/
   league     C:\RINK-VT\runtime (0 games)
@@ -105,9 +115,12 @@ shows what is on disk.
 
 ## Options
 
+The launchers pass their arguments to the host, so these work as `START_RINKVT.cmd --data E:\league` or
+`./START_RINKVT.sh --data ~/league`:
+
 ```
-python photon/rinkvt.py [--data DIR] [--port N] [--device-file FILE] [--fleet FILE] [--leases FILE] [--pool 127.16.0.0/12]
-                        [--no-browser] [--allow-default-browser-fallback] [--verify-only] [--version]
+rinkvt-photon [--data DIR] [--port N] [--device-file FILE] [--fleet FILE] [--leases FILE] [--pool 127.16.0.0/12]
+              [--no-browser] [--allow-default-browser-fallback] [--verify-only] [--version]
 ```
 
 | Option | Meaning |
@@ -142,7 +155,7 @@ drops it. Any other damage refuses to open the league, and `--verify-only` names
 
 **Back up** by copying the data folder after stopping the host (**stop host** in the window, or Ctrl+C). **Restore**
 by putting the folder back, then run `--verify-only` on it. A league can be checked without a host:
-`python photon/rinkvt.py --verify-only --data COPY` reads it and writes nothing.
+`RINKVT.cmd --verify-only --data COPY` (or `./rinkvt.sh --verify-only --data COPY`) reads it and writes nothing.
 
 ## Every laptop keeps its own 127 address
 
@@ -157,36 +170,48 @@ asked for first.
 
 To make the laptops of a club or league unique everywhere, whichever leagues they open, enrol them once in a shared
 **fleet register** (a lease table on a share or a USB disk): `START_RINKVT.cmd --fleet E:\rinkvt\fleet-leases`, or
-`python tools/leases.py --enroll E:\rinkvt\fleet-leases`. The register is remembered; when it cannot be reached, the
+`RINKVT.cmd leases --enroll E:\rinkvt\fleet-leases`. The register is remembered; when it cannot be reached, the
 pinned address is used. Two laptops that never shared a register and meet in one league are kept apart there, with a
 warning.
 
 Every line typed into a game records the laptop's address (the meta line's bytes 52–55), so `Q AUDIT` shows which
-laptop typed what. `python tools/leases.py --this-laptop` shows the laptop's identity and address. Windows and Linux
+laptop typed what. `RINKVT.cmd leases --this-laptop` shows the laptop's identity and address. Windows and Linux
 answer on the whole of 127.0.0.0/8; macOS answers only on 127.0.0.1 unless an alias is added, so there the host
 listens on 127.0.0.1 and still records the laptop's address.
 
 ## Verification and contracts
 
-`VERIFY_RINKVT` runs, in order: the release against `RELEASE_MANIFEST.json`, the league (seals and chains), the
-renderer bundle (rebuilt from `engine/` and `ui/` by `tools/bundle.py`, no Node.js), the contracts, and the tests.
+`VERIFY_RINKVT` (the host's `verify` command) checks, in order, and writes nothing: **[1]** the release against
+`RELEASE_MANIFEST.json` (every file's SHA-256); **[2]** the renderer bundle, rebuilt in memory from `engine/` and
+`ui/` and compared with `ui/workbench.js` and `ui/workbench.html`; **[3]** the contracts; **[4]** the host's own
+self-test (CRC-32C and SHA-256 vectors, device keys, the lease vectors, a league written, verified and deliberately
+damaged, and the API's guards); **[5]** the league (every seal and chain). It ends `VERIFIED` or names what failed.
 
 `contracts/mssl/` holds MSSL 0.3 records — the suite's identity, one record per component, and the qualification of
 this release, written from an actual test run. `contracts/ja/` holds JA21 JA Core 0.3 contract sources for the frame,
-the store, the lease table and the host API. `python tools/contracts.py check` validates them; with
-`--mssl-verifier PATH/TO/MSSL_WRITERS_CORPUS_1.0.0/tools/VERIFY_MSSL.py` it also runs the corpus's own validator on
-every record. The JA sources are **modeled contracts**: no JA Core parser, compiler or VM exists, and nothing executes
-them. See [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
+overtime rules, the store, the lease table and the host API. `RINKVT.cmd contracts check` validates them: every record
+by the single-document rules of the MSSL corpus validator (whose own program is not part of this edition), its seal,
+and that it is current; the JA sources' structure; and that the constants they state are those of the engine and the
+host. The JA sources are **modeled contracts**: no JA Core parser, compiler or VM exists, and nothing executes them.
+See [`docs/CONTRACTS.md`](docs/CONTRACTS.md).
 
 ## Repository layout
 
 ```
-photon/rinkvt.py          the host's entry point          photon/host/      server, store, leases, integrity, renderer
-ui/                       the page: loader, app, styles, and the built bundle (workbench.js)
-engine/                   the reference edition's engine sources (32 modules, 3 data tables)
-contracts/                MSSL records and JA21 sources    tools/            bundle, seal, contracts, leases, verify
-tests/                    unit, API and browser tests       docs/             handguide (PDF and its source), security, contracts
+START_RINKVT.cmd/.sh      start the host                  VERIFY_RINKVT.cmd/.sh   verify (writes nothing)
+RINKVT.cmd, rinkvt.sh     any host command                photon/bin/             the host for each platform
+photon/*.go               the host: server, store, leases, device, integrity, renderer, bundle, contracts, handguide
+photon/*_test.go          the tests (unit, API, release, contracts and browser)   photon/testdata/  their fixtures
+ui/                       the page: loader, app, styles, and the built bundle (workbench.js, workbench.html)
+engine/                   the reference edition's engine sources (33 modules, 3 data tables)
+contracts/                MSSL records and JA21 sources   docs/                   handguide (PDF and source), security, contracts
 ```
+
+**Building from source** is for maintainers only; the release already carries the result. `photon/build.cmd` or
+`photon/build.sh` rebuilds the six executables with the Go toolchain (Go 1.22 or newer, from go.dev; no cgo, so no C
+compiler) and the same Go version gives the same bytes; then `RINKVT.cmd seal` reseals the release. `go test ./...` in
+`photon/` runs the tests (the browser tests run where Edge, Chrome or Chromium is installed), and
+`RINKVT.cmd contracts qualify` runs them and writes the qualification record from what the run showed.
 
 ## Relationship to the reference edition
 
@@ -198,8 +223,9 @@ folder format (the reference edition's ledgers are SSD-RAM files, this edition's
 
 ## Limits
 
-- Qualified by its tests on the platform named in `contracts/mssl/90_qualification.mssl`. The Windows and macOS
-  launchers are written for those systems but were not executed for this release.
+- Qualified by its tests on the platform named in `contracts/mssl/90_qualification.mssl`. The executables for the
+  other systems are built from the same source, and the Windows and macOS launchers are written for those systems,
+  but they were not executed for this release.
 - One host per data folder, one operator identity (`operator@local`). Several windows may be open on one host;
   the second to change the league after the first is refused and reloads.
 - The browser keeps the whole league in memory, as the reference bench does: comfortable up to a few hundred games.

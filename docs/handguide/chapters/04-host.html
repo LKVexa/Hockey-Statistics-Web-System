@@ -1,9 +1,39 @@
 <h1 key="host">Operating the Photon host</h1>
-<p class="lede">The Photon host is the program an operator starts. It is a single Python process, standard library only, that checks the release, keeps the data folder, serves the workbench on a loopback address and opens the window.</p>
+<p class="lede">The Photon host is the program an operator starts. It is a single native process — one executable per platform, built with the Go standard library only — that checks the release, keeps the data folder, serves the workbench on a loopback address and opens the window. Nothing has to be installed for it: no Python, no Node.js, no runtime of any kind.</p>
+
+<h2 key="native-host">The executables and the launchers</h2>
+<p>The host is built from the Go sources in <code>photon/</code>, with the Go standard library and nothing else, and the release carries it ready to run for six platforms. Each is one file that depends on nothing but the operating system, and each is sealed by the release manifest like every other program file ({{ref:manifest}}).</p>
+<table class="t" key="tbl-executables" caption="The Photon host in the release">
+<colgroup><col style="width:30%"><col style="width:40%"><col style="width:30%"></colgroup>
+<thead><tr><th>Platform</th><th>Executable</th><th>Started by</th></tr></thead>
+<tbody>
+<tr><td>Windows 10 or 11, x64</td><td><code>photon\bin\rinkvt-photon-windows-amd64.exe</code></td><td rowspan="2"><code>START_RINKVT.cmd</code>, <code>VERIFY_RINKVT.cmd</code>, <code>RINKVT.cmd</code></td></tr>
+<tr><td>Windows 10 or 11, ARM64</td><td><code>photon\bin\rinkvt-photon-windows-arm64.exe</code></td></tr>
+<tr><td>macOS 11 or newer, Apple silicon</td><td><code>photon/bin/rinkvt-photon-darwin-arm64</code></td><td rowspan="4"><code>START_RINKVT.sh</code>, <code>VERIFY_RINKVT.sh</code>, <code>rinkvt.sh</code></td></tr>
+<tr><td>macOS 11 or newer, Intel</td><td><code>photon/bin/rinkvt-photon-darwin-amd64</code></td></tr>
+<tr><td>Linux, x64</td><td><code>photon/bin/rinkvt-photon-linux-amd64</code></td></tr>
+<tr><td>Linux, ARM64</td><td><code>photon/bin/rinkvt-photon-linux-arm64</code></td></tr>
+</tbody>
+</table>
+<p>The launchers are plain scripts that run nothing of their own. Each reads the processor from the system (<code>PROCESSOR_ARCHITECTURE</code> on Windows, <code>uname</code> elsewhere), starts the matching executable with the arguments it was given, and ends with its exit code; <code>START_RINKVT.cmd</code> keeps its console open when the host ends with an error, so that the message can be read. A 32-bit Windows, another operating system or processor, or a missing executable is refused with exit code 4. Whatever follows a launcher's name reaches the host: <code>START_RINKVT.cmd --data E:\league</code> starts it on that data folder, and <code>RINKVT.cmd leases --this-laptop</code> runs its <code>leases</code> command.</p>
+<table class="t" key="tbl-host-commands" caption="Commands of the Photon host">
+<colgroup><col style="width:38%"><col style="width:62%"></colgroup>
+<thead><tr><th>Command</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><i>(none)</i> <code>[options]</code></td><td>Start the host and open the workbench; <code>START_RINKVT</code> does this ({{ref:options}})</td></tr>
+<tr><td><code>verify [--data DIR] [--device-file FILE]</code></td><td>Check the release, the renderer bundle, the contracts, the host itself and the league, and write nothing; <code>VERIFY_RINKVT</code> does this ({{ref:verify}})</td></tr>
+<tr><td><code>leases --this-laptop</code><br><code>leases --enroll FLEET_FILE</code><br><code>leases [--data DIR | --file FILE] [KEY …]</code></td><td>This laptop's identity and address; its enrolment in a fleet register; a lease table and its lookups ({{ref:leases-tool}})</td></tr>
+<tr><td><code>bundle [--check]</code></td><td>Build <code>ui/workbench.js</code> and <code>ui/workbench.html</code> from <code>engine/</code> and <code>ui/</code>, or check that they are current ({{ref:bundle}})</td></tr>
+<tr><td><code>seal [--check]</code></td><td>Write, or check, <code>RELEASE_MANIFEST.json</code> ({{ref:release-procedure}})</td></tr>
+<tr><td><code>contracts write | check | qualify</code></td><td>Write the MSSL records from the contract table, check every record and JA21 source, or run the tests and write the qualification record ({{ref:checking-contracts}})</td></tr>
+<tr><td><code>handguide [--out FILE] [--html FILE]</code></td><td>Print this guide from its sources with the installed browser ({{ref:handguide-build}})</td></tr>
+<tr><td><code>--version</code>, <code>help</code></td><td>The product, version and edition; the list of commands</td></tr>
+</tbody>
+</table>
 
 <h2 key="options">The command line</h2>
-<p>The launchers <code>START_RINKVT.cmd</code> and <code>START_RINKVT.sh</code> find Python 3.10 or newer and run <code>photon/rinkvt.py</code> with the interpreter's isolated mode (<code>-I</code>: no user site packages, no environment-provided paths) and without bytecode files (<code>-B</code>), passing their own arguments on. The host takes the following options.</p>
-<table class="t" key="tbl-options" caption="Options of photon/rinkvt.py">
+<p>A start is the host with no command, as <code>START_RINKVT.cmd</code> and <code>START_RINKVT.sh</code> run it, with any of the following options.</p>
+<table class="t" key="tbl-options" caption="Options of a start">
 <colgroup><col style="width:30%"><col style="width:20%"><col style="width:50%"></colgroup>
 <thead><tr><th>Option</th><th>Default</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -64,8 +94,8 @@
 <tr><td>0</td><td>Stopped, or verified</td><td>A normal stop; with <code>--verify-only</code>, the release and the league are verified</td></tr>
 <tr><td>1</td><td>Verification failed</td><td><code>--verify-only</code> found a difference in the release or damage in the league; the report names it</td></tr>
 <tr><td>2</td><td>Usage</td><td>An unknown option or a port outside 0–65 535</td></tr>
-<tr><td>3</td><td>No Python</td><td>Set by the launchers when no Python 3.10 or newer is found</td></tr>
-<tr><td>4</td><td>Release integrity</td><td>A code file differs from the manifest: restore the release, or reseal a deliberate change ({{ref:release-procedure}})</td></tr>
+<tr><td>3</td><td>Not used</td><td>The launchers of earlier releases used it when no Python was found; this host needs none</td></tr>
+<tr><td>4</td><td>Release integrity</td><td>A code file or an executable differs from the manifest: restore the release, or reseal a deliberate change ({{ref:release-procedure}}). The launchers also end with 4 when the executable for the computer is missing, or the system is not one the release carries a host for</td></tr>
 <tr><td>5</td><td>Data folder in use</td><td>Another host holds the folder, on this computer or on another one</td></tr>
 <tr><td>6</td><td>League cannot be opened</td><td>Damage in the registry, a ledger or the event ledger: verify, then restore from a backup</td></tr>
 <tr><td>7</td><td>Device file, loopback lease or listener</td><td>The device file cannot be written; the lease table is damaged, full, locked or written for another pool; or no port is free</td></tr>
@@ -106,7 +136,7 @@
 <p>The listener is bound to the lease address and nothing else; it is never bound to a network interface or to all addresses. The port is the first free one of 8800 to 8829, so that a bookmark usually keeps working, or <code>--port</code>. Several hosts on one computer, each with its own data folder, therefore take consecutive ports. The address in the window's location is the lease address and port; the host answers no other Host header ({{ref:guards}}).</p>
 
 <h2 key="stopping">Stopping and signals</h2>
-<p>The host stops on <kbd>Ctrl</kbd>+<kbd>C</kbd>; on <b>stop host</b> in the window, which first commits anything outstanding and then calls <code>POST /api/shutdown</code>; on SIGTERM or SIGHUP (POSIX); and on SIGBREAK (Windows). On a stop it closes the listener, records <code>stop</code> in the event ledger and releases the data folder. If the system ends the process before that — a forced kill, a power cut — nothing acknowledged is lost, and the next start finds the lock stale and takes it over.</p>
+<p>The host stops on <kbd>Ctrl</kbd>+<kbd>C</kbd>; on <b>stop host</b> in the window, which first commits anything outstanding and then calls <code>POST /api/shutdown</code>; on SIGTERM or SIGHUP (macOS, Linux); and, on Windows, on <kbd>Ctrl</kbd>+<kbd>Break</kbd> and when its console window is closed. On a stop it closes the listener, records <code>stop</code> in the event ledger and releases the data folder. If the system ends the process before that — a forced kill, a power cut — nothing acknowledged is lost, and the next start finds the lock stale and takes it over.</p>
 
 <h2>Operating obligations</h2>
 <div class="reqs">

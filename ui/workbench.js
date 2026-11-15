@@ -1,11 +1,11 @@
-/* RINK-VT 2.5.0-lkvexa.3 · LK/Vexa edition · the renderer bundle, built by tools/bundle.py from engine/ and ui/.
+/* RINK-VT 2.5.0-lkvexa.4 · LK/Vexa edition · the renderer bundle, built by rinkvt-photon bundle from engine/ and ui/.
  * Copyright (C) 2026 RUSSELL PHILIP SMITHSON · SPDX-License-Identifier: GPL-3.0-only · no warranty: see LICENSE.
  * The engine's Go-derived parts keep their notices in engine/rink/hk001/NOTICE.md. */
 /* SPDX-License-Identifier: GPL-3.0-only
  * Copyright (C) 2026 RUSSELL PHILIP SMITHSON
  * The renderer's module loader: the engine's CommonJS modules in one page, with the few Node.js built-ins they name
  * (path, crypto, events, os, Buffer, process) provided by the page. fs is not one of them: the Photon host keeps the
- * league, and the page reaches it only through the host's API. Written into workbench.js by tools/bundle.py. */
+ * league, and the page reaches it only through the host's API. Written into workbench.js by rinkvt-photon bundle. */
 (function (G) {
   'use strict';
   const D = Object.create(null), J = Object.create(null), cache = Object.create(null);

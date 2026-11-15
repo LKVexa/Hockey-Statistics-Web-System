@@ -2,7 +2,7 @@
  * Copyright (C) 2026 RUSSELL PHILIP SMITHSON
  * The renderer's module loader: the engine's CommonJS modules in one page, with the few Node.js built-ins they name
  * (path, crypto, events, os, Buffer, process) provided by the page. fs is not one of them: the Photon host keeps the
- * league, and the page reaches it only through the host's API. Written into workbench.js by tools/bundle.py. */
+ * league, and the page reaches it only through the host's API. Written into workbench.js by rinkvt-photon bundle. */
 (function (G) {
   'use strict';
   const D = Object.create(null), J = Object.create(null), cache = Object.create(null);

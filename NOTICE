@@ -1,4 +1,4 @@
-RINK-VT Workbench, LK/Vexa edition (Photon-hosted) 2.5.0-lkvexa.3
+RINK-VT Workbench, LK/Vexa edition (Photon-hosted) 2.5.0-lkvexa.4
 Copyright (C) 2026 RUSSELL PHILIP SMITHSON
 Licensed under the GNU General Public License, version 3 only (GPL-3.0-only). See LICENSE and COPYRIGHT.
 
@@ -9,18 +9,27 @@ Provenance
                  except where the reference edition itself changed them for it (a host-kept league), and for
                  the start frame (START) added in 2.5.0-lkvexa.2 and the whistle (WHISTLE) and league overtime
                  rules (rink overtime) added in 2.5.0-lkvexa.3, which keep every earlier behaviour: a game without
-                 league rules plays and replays exactly as before.
+                 league rules plays and replays exactly as before. The engine runs in the browser window; none of
+                 it needs Node.js.
   engine/rink/hk001/
                  Contains code derived from the Go standard library; its notices and licence terms are kept in
                  engine/rink/hk001/NOTICE.md and continue to apply to those parts.
   photon/        The Photon host follows the design of VEC1 Photon (Design Photon 0.6.0, Generic Photon 0.2.0,
-                 WindowsSafe-r1, Copyright 2026 RUSSELL PHILIP SMITHSON, GPL-3.0-only): a Python control
-                 plane, a Chromium-family renderer window on an isolated profile, a loopback JSON API guarded by
-                 Host, Origin and a per-launch token, and a release-integrity gate. No Photon source file is copied.
+                 WindowsSafe-r1, Copyright 2026 RUSSELL PHILIP SMITHSON, GPL-3.0-only): a control plane, a
+                 Chromium-family renderer window on an isolated profile, a loopback JSON API guarded by Host,
+                 Origin and a per-launch token, and a release-integrity gate. Where VEC1 Photon's control plane is
+                 a Python program, this edition's is a native program written in Go with its standard library
+                 only (photon/*.go). No Photon source file is copied. From 2.5.0-lkvexa.4 there is no Python and
+                 no Node.js anywhere in the edition: nothing has to be installed to run, verify or document it.
+  photon/bin/    The host for each platform, built from photon/*.go (photon/build.cmd, photon/build.sh). Each
+                 executable contains the Go runtime and standard library, Copyright 2009 The Go Authors, under the
+                 BSD 3-Clause licence whose text is in photon/LICENSE-GO; that licence applies to those parts.
   contracts/     MSSL 0.3 records in the observed subset described by the MSSL Writers Corpus 1.0.0, and JA Core
                  0.3 contract sources in the provisional grammar of the JA21 JA Core Application Language Suite
                  1.0.0 (both Copyright 2026 RUSSELL PHILIP SMITHSON, GPL-3.0-only). Neither corpus is bundled.
                  The JA sources are modeled contracts: no JA Core parser, compiler or VM is supplied or claimed.
+                 The records are written and checked by the host's own contracts command, which applies the
+                 single-document rules of the corpus validator; the validator itself is not part of the edition.
 
 Data
   The four demonstration clubs and every simulated game are fictional. HK001 is a deterministic synthetic

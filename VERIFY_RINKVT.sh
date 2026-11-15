@@ -1,13 +1,18 @@
 #!/bin/sh
-# RINK-VT, LK/Vexa edition: verify the release, the league, the contracts and the tests.
-# Copyright (C) 2026 RUSSELL PHILIP SMITHSON. GPL-3.0-only; no warranty: see LICENSE.
+# RINK-VT, LK/Vexa edition: verify the release, its contracts, the host and the league. Writes nothing.
 set -eu
-here=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
-cd "$here"
-for py in python3 python; do
-  if command -v "$py" >/dev/null 2>&1 && "$py" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
-    exec "$py" -I -B tools/verify.py "$@"
-  fi
-done
-echo "RINK-VT needs Python 3.10 or newer." >&2
-exit 3
+ROOT=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+case "$(uname -s)" in
+  Darwin) os=darwin ;;
+  Linux) os=linux ;;
+  *) echo "RINK-VT: this release carries the Photon host for Windows, macOS and Linux, not $(uname -s)." >&2; exit 4 ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) arch=amd64 ;;
+  arm64|aarch64) arch=arm64 ;;
+  *) echo "RINK-VT: this release carries the Photon host for x64 and ARM64, not $(uname -m)." >&2; exit 4 ;;
+esac
+exe="$ROOT/photon/bin/rinkvt-photon-$os-$arch"
+if [ ! -f "$exe" ]; then echo "RINK-VT: $exe is missing. Unpack the whole release again." >&2; exit 4; fi
+[ -x "$exe" ] || chmod +x "$exe"
+exec "$exe" verify "$@"
