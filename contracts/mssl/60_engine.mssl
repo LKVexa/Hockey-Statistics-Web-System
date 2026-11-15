@@ -1,0 +1,15 @@
+MSSL{
+α≡{"format":"0.3","profile":"basic_mssl.executable.3","record":"MSSL.Document","source_language":"MSSL","source_version":"0.3"},
+ι≡"mssl:rinkvt:lkvexa:engine:2.5.0-lkvexa.1",
+λ≡"rinkvt.lkvexa.engine",
+ℛ≡{"0001":"module(\"rinkvt.lkvexa.engine\")","0002":"learn(\"component\",literal(\"engine/ (32 modules and 3 data tables of the reference edition's engine), ui/loader.js, ui/app.js\"))","0003":"learn(\"contract\",literal(\"the command language, frames, game actor, models, roster importer and HK001 run in the renderer as the reference edition runs them; the window sends the host every change a command made and shows the command's result only after the host has it on disk; when the host refuses, the window loads the league again\"))","0004":"learn(\"engine_version\",literal(\"2.5.0-rinkvt.1\"))","0005":"learn(\"ja_contract\",literal(\"contracts/ja/rinkvt_frame.ja\"))","0006":"learn(\"maturity\",literal(\"OPERATIONAL\"))","0007":"learn(\"evidence\",literal(\"[\\\"tests/test_browser.py\\\",\\\"tests/test_store.py\\\"]\"))","0008":"learn(\"scope_limit\",literal(\"the engine's own test suite belongs to the reference edition (Node.js); this edition exercises the engine through its browser tests\"))"},
+π≡[],
+δ≡8,
+τ≡0,
+μ≡{"learn.component":"engine/ (32 modules and 3 data tables of the reference edition's engine), ui/loader.js, ui/app.js","learn.contract":"the command language, frames, game actor, models, roster importer and HK001 run in the renderer as the reference edition runs them; the window sends the host every change a command made and shows the command's result only after the host has it on disk; when the host refuses, the window loads the league again","learn.engine_version":"2.5.0-rinkvt.1","learn.ja_contract":"contracts/ja/rinkvt_frame.ja","learn.maturity":"OPERATIONAL","learn.evidence":["tests/test_browser.py","tests/test_store.py"],"learn.scope_limit":"the engine's own test suite belongs to the reference edition (Node.js); this edition exercises the engine through its browser tests"},
+ρ≡{"assertions":[],"emissions":[],"prints":[]},
+χ≡[],
+η≡{"events":[],"state":{"component":"engine/ (32 modules and 3 data tables of the reference edition's engine), ui/loader.js, ui/app.js","contract":"the command language, frames, game actor, models, roster importer and HK001 run in the renderer as the reference edition runs them; the window sends the host every change a command made and shows the command's result only after the host has it on disk; when the host refuses, the window loads the league again","engine_version":"2.5.0-rinkvt.1","ja_contract":"contracts/ja/rinkvt_frame.ja","maturity":"OPERATIONAL","evidence":["tests/test_browser.py","tests/test_store.py"],"scope_limit":"the engine's own test suite belongs to the reference edition (Node.js); this edition exercises the engine through its browser tests"}},
+ν≡{}
+,κ≡"sha256:c157d99fb58a618c67f4863b415051f2166ff99292885f5961d589a72b8a453a"
+}⇒⊤

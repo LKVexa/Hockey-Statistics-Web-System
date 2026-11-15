@@ -1,0 +1,89 @@
+<h1 key="loopback">Static loopback addresses</h1>
+<p class="lede">Every IP address that starts a host receives one address in the loopback network 127.0.0.0/8 and keeps it for good. The workbench listens on it and records it with every line typed, so the audit trail says which computer typed what — without an IP address ever being stored in the league.</p>
+
+<h2>Purpose</h2>
+<p>In the reference edition a gateway serves many clients, and each client IP address receives a lease: sessions, the audit trail and the logs name a client by its loopback address, never by its IP address. The LK/Vexa edition applies the same algorithm to the one computer it runs on. The lease serves three ends: the host listens on an address that belongs to this computer alone; every ledger entry records it (the meta line's bytes 52–55), so <code>Q AUDIT</code> shows in its column <i>from</i> which computer typed each line, across sessions and restarts; and two computers that share a lease table, or a league copied between them, keep distinct addresses.</p>
+
+<h2 key="pool">The pool</h2>
+<p>Leases come from a pool, by default <code>127.16.0.0/12</code> (<code>--pool</code>). A pool MUST lie inside 127.0.0.0/8, MUST be a /9 to a /24 starting on its own boundary, and MUST NOT overlap 127.0.0.0/16, which the computer itself uses (127.0.0.1, and 127.0.1.1 on many Linux systems). Addresses ending in .0 or .255 are never handed out. A pool of prefix length <i>n</i> therefore holds</p>
+<pre>capacity = (2^(32 − n) / 256) × 254          the default /12: 4 096 × 254 = 1 040 384 addresses</pre>
+<p>and the address at slot <i>i</i> is <code>base + ⌊i / 254⌋ × 256 + (i mod 254) + 1</code>.</p>
+
+<h2 key="keys">Keys</h2>
+<p>A lease belongs to a key, the canonical text of the IP address:</p>
+<ul>
+<li>surrounding white space, a port (<code>192.0.2.44:8080</code>, <code>[2001:db8::2]:443</code>) and an IPv6 zone (<code>fe80::1%eth0</code>) are removed;</li>
+<li>an IPv4-mapped IPv6 address (<code>::ffff:192.0.2.44</code>) is its IPv4 address;</li>
+<li>IPv6 is written as RFC 5952 prescribes (lower case, the longest run of zero groups compressed): <code>[2001:DB8:0:0::1]:443</code> is <code>2001:db8::1</code>;</li>
+<li>optionally, an IPv6 client is keyed by its /<i>N</i> prefix rather than its address (the reference edition's <code>VWS_LOOPBACK_IPV6_PREFIX</code>; this edition uses /128).</li>
+</ul>
+<p>Text that is not an IP address, or is longer than 64 characters, has no key and receives no lease.</p>
+
+<h2 key="slot">Choosing an address</h2>
+<p>The first choice for a key is a slot computed from the key alone:</p>
+<pre>slot(key) = int( SHA-256("RINK-VT loopback 1" ‖ NUL ‖ key)[first 16 hex digits], 16 ) mod capacity</pre>
+<p>If that slot's address is held by another key, the next slots are tried in order, wrapping at the end of the pool (linear probing), and the first free address is taken. A key therefore receives the same address on any host with the same pool unless an earlier key took its slot first, and a collision moves only the newcomer. A table holds at most <code>max_leases</code> keys (65 536 by default); a new key beyond that, or in a full pool, is refused, never given an address another key holds.</p>
+
+<h2 key="lease-file">The lease table</h2>
+<p>The table is a text file, by default <code>loopback/leases</code> in the data folder (<code>--leases</code>). Its first line is a header naming the format, the pool and the IPv6 key prefix; each later line is one lease of four fields separated by single spaces: the address, the key, the time it was made (UTC) and a seal, the first 16 hexadecimal digits of the SHA-256 of the first three fields joined by spaces.</p>
+<pre># RINK-VT loopback leases · format 1 · pool 127.16.0.0/12 · ipv6 /128
+127.20.66.113 203.0.113.5 2026-11-15T17:32:10Z aee292fc2d1a1222</pre>
+<p>A lease line is appended and synced before the address is used. A last line cut off by a stop was never handed out and is dropped when the table is next read. Any other damage refuses the table, and with it the start (exit 7): a line that does not have four fields or does not match its seal; an address outside the pool; a key that is not canonical; a second lease for one key or one address; a header of another format; or a header naming another pool or IPv6 prefix, because leases are static and a changed pool would move every one of them.</p>
+<div class="caution"><p>A lease table MUST NOT be edited. To begin again with a different pool, start with a new, empty table file; every computer then receives new addresses, and the <i>from</i> column of lines recorded before shows the old ones.</p></div>
+
+<h2>Where the address is used</h2>
+<table class="t" key="tbl-lease-uses" caption="Uses of the lease address">
+<colgroup><col style="width:30%"><col style="width:70%"></colgroup>
+<thead><tr><th>Where</th><th>Use</th></tr></thead>
+<tbody>
+<tr><td>The listener</td><td>The host listens on the lease address and port; the window's address is <code>http://127.x.y.z:port/</code>. Where the system answers only on 127.0.0.1, the host listens there and says so ({{ref:platforms}})</td></tr>
+<tr><td>The meta line</td><td>Bytes 52–55 of every entry's meta line hold the four octets of the address of the computer that typed the line ({{ref:meta}})</td></tr>
+<tr><td><code>Q AUDIT</code></td><td>The column <i>from</i> shows it for every line; lines recorded by the reference edition before 2.5, by the simulator, or in process show none</td></tr>
+<tr><td>The host strip and <code>store</code></td><td><i>loopback 127.x.y.z · static for</i> the IP address</td></tr>
+<tr><td>The event ledger</td><td>Every <code>start</code> event records the lease and the address bound</td></tr>
+</tbody>
+</table>
+
+<h2 key="sharing">Sharing one table between computers</h2>
+<p>Several computers can share one lease table, so that each receives a different address even when their leagues are later brought together. Every allocation takes an exclusive lock file beside the table (<code>leases.lock</code>), re-reads the table under the lock, and appends its line before releasing the lock; a lock older than 60 s is taken to be left by a holder that died, and a host waits at most 15 s for a lock before refusing.</p>
+<ol class="proc">
+<li><p>Place the table on a folder every computer can write, for example a network share: <code>\\server\rinkvt\leases</code>.</p></li>
+<li><p>Start each host with <code>--leases</code> naming that file. Each computer's first start appends its lease; later starts find it.</p></li>
+<li><p>Give each computer its own data folder. A data folder belongs to one computer at a time, and the host refuses a folder another computer holds.</p></li>
+</ol>
+<div class="note"><p>A table shared with a reference-edition gateway is not recommended: both editions read and write the same format, but the gateway holds its file for the whole of its run.</p></div>
+
+<h2 key="platforms">Platform behaviour</h2>
+<table class="t" key="tbl-platforms" caption="Loopback addresses by operating system">
+<colgroup><col style="width:16%"><col style="width:84%"></colgroup>
+<thead><tr><th>System</th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td>Linux</td><td>Answers on the whole of 127.0.0.0/8: the host listens on its lease address</td></tr>
+<tr><td>Windows</td><td>Answers on the whole of 127.0.0.0/8: the host listens on its lease address</td></tr>
+<tr><td>macOS</td><td>Answers only on 127.0.0.1 unless an alias is added (<code>sudo ifconfig lo0 alias 127.20.66.113</code>). Without one, the host listens on 127.0.0.1 and the report says so; the lease is still made and recorded with every line</td></tr>
+</tbody>
+</table>
+<p>The IP address that receives the lease is the computer's primary address — the source address of its default route, determined by opening a datagram socket towards a documentation address (192.0.2.1) without sending anything — unless <code>--address</code> names one. A computer without a network receives the lease of the key 127.0.0.1. A laptop that moves between networks has a different primary address on each and therefore a lease for each; <code>--address</code> fixes the key.</p>
+
+<h2 key="lease-vectors">Agreement with the reference edition</h2>
+<p>The two editions implement the algorithm independently, in Python and in JavaScript, and agree. The test suite pins these vectors, computed with the reference edition's <code>gateway/loopback.js</code>:</p>
+<table class="t" key="tbl-lease-vectors" caption="First leases in an empty default pool">
+<colgroup><col style="width:46%"><col style="width:54%"></colgroup>
+<thead><tr><th>Client as written</th><th>Lease</th></tr></thead>
+<tbody>
+<tr><td><code>203.0.113.5</code></td><td><code>127.20.66.113</code></td></tr>
+<tr><td><code>198.51.100.7</code></td><td><code>127.25.34.133</code></td></tr>
+<tr><td><code>10.0.0.1</code></td><td><code>127.18.240.207</code></td></tr>
+<tr><td><code>::ffff:192.0.2.44</code> and <code>192.0.2.44:8080</code></td><td><code>127.26.105.28</code> (one key)</td></tr>
+<tr><td><code>2001:db8::1</code></td><td><code>127.18.166.142</code></td></tr>
+<tr><td><code>[2001:db8::2]:443</code></td><td><code>127.22.152.35</code></td></tr>
+<tr><td><code>fe80::1%eth0</code></td><td><code>127.29.105.216</code></td></tr>
+<tr><td><code>2001:db8::1</code> and <code>2001:db8::ffff</code>, keyed by /64</td><td><code>127.25.77.133</code> (one key, <code>2001:db8::/64</code>)</td></tr>
+</tbody>
+</table>
+<p>In the pool <code>127.200.0.0/24</code>, the clients <code>192.0.2.0</code> to <code>192.0.2.5</code>, leased in that order, receive <code>.83</code>, <code>.253</code>, <code>.225</code>, <code>.55</code>, <code>.198</code> and <code>.199</code>: the sixth client's first choice is .198, the fifth's address, so it moved to the next free one.</p>
+
+<h2>Reading the table</h2>
+<pre>python tools/leases.py [--data DIR | --file FILE]          the pool, its capacity and every lease
+python tools/leases.py --data DIR 203.0.113.5 198.51.100.7    the lease of each address, or the address it would be offered first</pre>
+<p>The tool only reads: leases are made by a host when an address first starts it, and they never change or expire.</p>

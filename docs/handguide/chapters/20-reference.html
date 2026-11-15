@@ -1,0 +1,68 @@
+<h1 key="reference">The reference edition</h1>
+<p class="lede">HERMIT + RINK-VT {{reference}} is the edition the engine comes from: a multi-user gateway on Node.js that serves terminals and a browser dashboard to principals with capabilities, keeps the league in SSD-RAM ledgers, and gives every client IP address a static loopback address. It is delivered as an archive, not in the LK/Vexa repository.</p>
+
+<h2>What it is</h2>
+<p>HERMIT is a gateway that serves SPIRAL terminal sessions — each in a worker thread or process with an enforced memory cap — to browsers and to a desktop application. RINK-VT adds the statistics service to it: the same engine as the LK/Vexa edition, run once in the gateway for all clients, with a <code>rink</code> mode in every terminal, a browser dashboard with a command bar, live feeds over WebSocket, and a durable league. Its manual is <code>docs/RINK-VT.md</code> in its archive; this chapter summarises what an operator of the LK/Vexa edition needs to know to work beside it.</p>
+
+<h2>Starting it</h2>
+<pre>START.cmd                            Windows
+./start.sh                           Linux, macOS
+node tools/start-local.js --demo 12  with twelve synthetic games typed into an empty league</pre>
+<p>The local launcher binds 127.0.0.1:10000, creates a principal for the local operator with administrative capability, and prints its access token once; the browser signs in with it at <code>http://127.0.0.1:10000/</code>. In a terminal, <code>rink</code> enters RINK mode; in the browser, <b>RINK</b> in the title bar or <kbd>Ctrl</kbd>+<kbd>K</kbd> opens the command bar. League data is kept in <code>.vws-local/rink/</code>, the lease table in <code>.vws-local/loopback/leases</code>.</p>
+<div class="caution"><p>The gateway refuses to start (<code>EHEAPCAP</code>) when a process-wide V8 heap flag, usually <code>--max-old-space-size</code> in <code>NODE_OPTIONS</code>, would defeat its per-session memory caps. Unset the flag, or set <code>VWS_REQUIRE_HEAP_CAP=0</code> to run with the cap disclosed as unenforced.</p></div>
+
+<h2>Principals and capabilities</h2>
+<table class="t" key="tbl-capabilities" caption="Capabilities of the reference edition">
+<colgroup><col style="width:18%"><col style="width:82%"></colgroup>
+<thead><tr><th>Capability</th><th>Allows</th></tr></thead>
+<tbody>
+<tr><td><code>rink.query</code></td><td>Games, leagues, teams, rosters and references; queries; HK001 cases; the tenant's own notes; live updates</td></tr>
+<tr><td><code>rink.score</code></td><td>The above, and submitting frames, creating games, and seeing who typed each line (<code>Q AUDIT</code>, operator identities)</td></tr>
+<tr><td><code>rink.admin</code></td><td>The above, and leagues, teams and players, roster import, simulation, ledger verification, every tenant's notes</td></tr>
+</tbody>
+</table>
+<p>A principal whose tenant is four letters is a club tenant: it scores and creates only that club's games and sees only its own notes; other tenants are league staff. Subscribers see the server's own description of an accepted line, never text a client supplied; the operator's identity is sent to scorers and administrators only.</p>
+
+<h2 key="reference-ledger">The SSD-RAM ledger</h2>
+<p>The reference edition keeps each game in one file, <code>ledger/&lt;key&gt;-&lt;uuid8&gt;.ssd</code>, following the Plume SSD-RAM-XPU design applied to a 64-byte frame. A header page carries the magic <code>RINKVT-SSDRAM/1</code>, the geometry, the game's UUID and a CRC-32C. Data lives in segments of out-of-place pages: generation <i>g</i> of a page is written to slot <i>g</i> mod 2, and 64-byte records (<code>CPR1</code>, page, generation, lines, the page's SHA-256, frames, CRC-32C) say which generation is committed. A flush writes every touched page to its other slot and syncs, then writes the records one page at a time in page order, each synced, so whatever survives a power cut is a prefix. The service flushes after every command line before it answers. A torn record falls back to the previous generation; a committed generation whose data no longer matches is reported as damage; a damaged game is quarantined — answered with the reason and left out of league-wide answers — while the rest of the league runs. The entries are the same frame and meta-line pairs the LK/Vexa edition keeps ({{ref:frame}}, {{ref:meta}}), and the registry is the same sealed document ({{ref:registry}}).</p>
+
+<h2 key="wide-use">Static loopback leases in wide use</h2>
+<p>A gateway that other computers can reach (<code>VWS_HOST</code> not a loopback address; the default is <code>0.0.0.0</code>) gives every client IP address that signs in a lease from the same pool and by the same algorithm as {{ref:loopback}}. A session sees its lease as its own host address (<code>hostname -i</code>, <code>/etc/hosts</code> mapping <code>hermit</code> to it, <code>$LOOPBACK</code>, a line of the banner); every line typed records it in its meta line; the logs name a connection by it and never by its IP address; <code>/live</code> counts leases and names none.</p>
+<table class="t" key="tbl-lease-settings" caption="Lease settings of the reference edition">
+<colgroup><col style="width:30%"><col style="width:16%"><col style="width:54%"></colgroup>
+<thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>VWS_LOOPBACK_FILE</code></td><td>—</td><td>The lease table. Required in wide use: without it the gateway refuses to start, so that "static" survives a restart</td></tr>
+<tr><td><code>VWS_LOOPBACK_POOL</code></td><td><code>127.16.0.0/12</code></td><td>Where leases come from (the rules of {{ref:pool}})</td></tr>
+<tr><td><code>VWS_LOOPBACK_MAX_LEASES</code></td><td>65 536</td><td>The most client addresses; a new client beyond it is refused (503), never given another's address</td></tr>
+<tr><td><code>VWS_LOOPBACK_IPV6_PREFIX</code></td><td>128</td><td>128: each IPv6 address is a client; 64: an IPv6 client is its /64 (privacy addresses change daily)</td></tr>
+<tr><td><code>VWS_LOOPBACK_VOLATILE</code></td><td>0</td><td>1 accepts wide use without a file: a client that collided with another may get another address after a restart</td></tr>
+<tr><td><code>VWS_TRUST_PROXY</code></td><td>—</td><td>The proxies in front of the gateway, as a count (1–8) or their addresses and networks. Unset, the socket's peer is the client and <code>X-Forwarded-For</code> is ignored; set, the header is read through those proxies only, and an address a client wrote into it itself is never believed. Unreadable forwarding is refused (400)</td></tr>
+</tbody>
+</table>
+<p><code>node tools/loopback.js FILE [ADDRESS]</code> lists the table or maps one address to the other. Behind a proxy or load balancer, set <code>VWS_TRUST_PROXY</code> or every client shares the proxy's lease; compare <code>hostname -i</code> from two computers before relying on it.</p>
+
+<h2>Configuration of the statistics service</h2>
+<table class="t" key="tbl-rink-settings" caption="Statistics settings of the reference edition">
+<colgroup><col style="width:32%"><col style="width:12%"><col style="width:56%"></colgroup>
+<thead><tr><th>Setting</th><th>Default</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>VWS_RINK</code></td><td>1</td><td>Enable the RINK service, routes and commands</td></tr>
+<tr><td><code>VWS_RINK_DIR</code></td><td>—</td><td>The league's folder; unset, the league is in memory and is gone at restart</td></tr>
+<tr><td><code>VWS_RINK_SEED</code> · <code>VWS_RINK_DEMO_GAMES</code></td><td>1 · 0</td><td>Seed the demonstration clubs into an empty registry; type N synthetic games on a first start</td></tr>
+<tr><td><code>VWS_RINK_MAX_GAMES</code> · <code>VWS_RINK_MAX_FRAMES</code></td><td>1 000 · 20 000</td><td>Games a league may hold (about 1 MiB of heap each); accepted frames per game</td></tr>
+<tr><td><code>VWS_RINK_MAX_SKEW_MS</code></td><td>5 000</td><td>How far ahead of the server clock a frame may be stamped</td></tr>
+<tr><td><code>VWS_RINK_MAX_FEEDS</code> · <code>…_PER_PRINCIPAL</code></td><td>32 · 4</td><td>Concurrent live feeds, in all and per principal</td></tr>
+<tr><td><code>VWS_RINK_IMPORT_DIR</code> · <code>VWS_RINK_IMPORT_MAX_BYTES</code></td><td>— · 4 MiB</td><td>Folders <code>rink import PATH</code> may read on the gateway's computer; the largest roster file</td></tr>
+</tbody>
+</table>
+<p>A malformed value stops the start with exit code 78, and a <code>VWS_</code> name the gateway does not know is a start-up error too, so a mistyped setting is never ignored.</p>
+
+<h2>Deployment</h2>
+<p><code>deploy/Dockerfile</code> copies the gateway with <code>ram/</code>, <code>rink/</code> and <code>vendor/xpu/</code>, keeps the lease table and the league under a <code>/data</code> volume (<code>VWS_LOOPBACK_FILE=/data/loopback/leases</code>, <code>VWS_RINK_DIR=/data/rink</code>), and <code>tools/docker-files-check.js</code> starts the gateway from exactly the files the Dockerfile names — in wide use, with a session and a statistics command — without Docker. <code>deploy/render.yaml</code> gives the service a disk at <code>/data</code> and trusts one proxy.</p>
+
+<h2>Verification of the reference edition</h2>
+<pre>node tools/verify.js                  every file against release/manifest.json
+node tools/mkmanifest.js --check      the manifest is current
+npm test                              the test suite ({{ref:tbl-reference-tests}})
+npm run test:ui                       the four browser tests (Chromium)</pre>

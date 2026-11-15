@@ -1,0 +1,61 @@
+<h1 key="rosters">Rosters and references</h1>
+<p class="lede">A scorer types four-letter references: a team, a player. A league's clubs and rosters usually exist already in a spreadsheet or an export, and the importer turns such a file into registered leagues, teams and players, each with its reference.</p>
+
+<h2 key="refs">Four-letter references</h2>
+<p>Every league has a <code>LEAGUE_4</code>, every team a <code>TEAM_4</code>, every player on a team a <code>PLAYER_4</code>. League and team codes are one namespace, and the reserved words of the language are never codes, so a code means one thing wherever it is typed. A reference that exists is never changed.</p>
+<h3>League and team codes</h3>
+<p>A code a file gives is used as it stands. Otherwise <code>LEAGUE_4</code> comes from the league's name and <code>TEAM_4</code> from the team's city (the specification's "municipal identity"), or, without a city, from its name less its last word, the nickname.</p>
+<table class="t" key="tbl-team-codes" caption="How a four-letter code is made from a name">
+<colgroup><col style="width:22%"><col style="width:22%"><col style="width:56%"></colgroup>
+<thead><tr><th>The name has</th><th>Letters</th><th>Examples</th></tr></thead>
+<tbody>
+<tr><td>one word</td><td>its first four</td><td><b>EDMO</b>nton · <b>REGI</b>na · <b>RIMO</b>uski</td></tr>
+<tr><td>two words</td><td>two of each</td><td><b>ME</b>dicine <b>HA</b>t → MEHA · <b>FO</b>rt <b>CO</b>llins → FOCO · <b>VA</b>l-d'<b>OR</b> → VADO</td></tr>
+<tr><td>three words</td><td>2 + 1 + 1</td><td><b>WE</b>stern <b>H</b>ockey <b>L</b>eague → WEHL · <b>PR</b>airie <b>J</b>unior <b>L</b>eague → PRJL</td></tr>
+<tr><td>four or more</td><td>initials of the first four</td><td><b>Q</b>uebec <b>M</b>aritimes <b>J</b>unior <b>H</b>ockey League → QMJH</td></tr>
+</tbody>
+</table>
+<p>Small words (of, the, de, du, des, la, le, les, and, et, at, au, aux) do not count; accents, apostrophes and periods are dropped; a hyphen separates words. A name too short borrows from the nickname, then X fills. When the first choice is taken, the next are, in order: the other splits (3 + 1, 1 + 3; 1 + 2 + 1, 1 + 1 + 2); the first three letters with each later letter of the name (KELO taken → KELW); with A to Z; the first two with AA to ZZ; the first with AAA to ZZZ.</p>
+<h3>Player codes</h3>
+<p><code>PLAYER_4</code> is the first four letters of the surname (SMIT). A short surname takes letters of the given name (Roy, Philippe → ROYP). When a team-mate already has the code, the rule takes three letters and the given-name initial (SMIR), then three letters and the last digit of the jersey (SMI9), then two letters and two digits, then letters. <code>J91</code> and <code>0091</code> remain aliases of jersey 91. Codes a file gives are set aside before any is designated, and the rule is deterministic, so one file gives the same references whatever the order of its rows.</p>
+
+<h2 key="roster-forms">Roster files</h2>
+<table class="t" key="tbl-roster-forms" caption="Roster file forms">
+<colgroup><col style="width:16%"><col style="width:84%"></colgroup>
+<thead><tr><th>Form</th><th>Layout</th></tr></thead>
+<tbody>
+<tr><td><code>.csv</code> <code>.tsv</code></td><td>A header row, then one row per player (or per team, or per league). Commas, semicolons, tabs or bars; quoted cells; UTF-8, UTF-16 or Windows-1252</td></tr>
+<tr><td><code>.xlsx</code> <code>.xlsm</code></td><td>Every visible sheet is such a table; a sheet named after a team, with no team column, is that team's roster. A formula gives the value Excel saved with it; macros are never opened. An old <code>.xls</code> must be saved as <code>.xlsx</code></td></tr>
+<tr><td><code>.md</code></td><td><code># League</code>, <code>## Team [CODE]</code>, then a pipe table, <code>City: …</code> lines, or lines such as <code>9 John Smith C</code></td></tr>
+<tr><td><code>.txt</code> <code>.corpus</code></td><td><code>league = …</code>, <code>team = …</code>, <code>city = …</code>, <code>player = …</code>, <code>jersey = …</code>, <code>pos = …</code> lines; or <code>TEAM Name</code> followed by player lines; or the same table as <code>.csv</code></td></tr>
+<tr><td><code>.xml</code></td><td><code>&lt;league name=""&gt;&lt;team name="" city=""&gt;&lt;player jersey="" last="" first="" pos=""/&gt;</code>, as elements or attributes in any nesting; rows of <code>&lt;row&gt;</code> or <code>&lt;record&gt;</code>; or Excel 2003 XML</td></tr>
+<tr><td><code>.edi</code></td><td><code>LGE*name*code*abbr~</code>, <code>TEM*name*code*city*arena~</code>, <code>PLR*jersey*last*first*pos*shoots*born~</code>, or <code>key*value~</code> pairs; an ISA envelope is passed over</td></tr>
+</tbody>
+</table>
+<p>Columns may be in any order, in English or French, with headers as people write them (<code>Jersey #</code>, <code>N°</code>, <code>Shoots (L/R)</code>, <code>Date of birth</code>, <code>Prénom</code>). The league columns are <code>league</code>, <code>league_code</code> and <code>league_abbr</code>; the team columns <code>team</code>, <code>team_code</code>, <code>city</code>, <code>arena</code> and <code>timezone</code>; the player columns <code>player</code> or <code>name</code> ("Smith, John" or "John Smith") or <code>last_name</code> with <code>first_name</code>, <code>jersey</code>, <code>pos</code> (C LW RW D G; a forward of no stated line is recorded as C), <code>shoots</code> (L R), <code>born</code>, <code>import</code> and <code>player_code</code>. A date such as 03/04/2006, which could be March or April, is left out rather than guessed. A cell left empty under a team or league means the same as the row above.</p>
+
+<h2 key="importing">Importing in the workbench</h2>
+<ol class="proc">
+<li><p>Choose the file with the chip <b>your roster file…</b>, or write the examples into the window's file system with <code>rink import examples</code> and name one, such as <code>rink import rosters/roster.md</code>. The window cannot read paths of the computer's disk; the file chooser is the way a file of this computer reaches the engine ({{ref:picker}}).</p></li>
+<li><p>Read the preview. It is the registration itself, run on the registry and undone, so what it shows is what <code>--apply</code> does: the leagues, teams and players, which are new, the reference each would receive, and every error and warning with its place (<code>line 12</code>, <code>sheet "Teams" row 4</code>).</p></li>
+<li><p>Register it with <code>rink import NAME --apply</code>. The registry is written once: all of the file, or nothing when any record is in error (<code>--skip-errors</code> registers the rest). The change is recorded by the host like any other ({{ref:recording}}).</p></li>
+<li><p>List the references with <code>rink refs</code> (every league and team) and <code>rink refs TEAM</code> (a team's players as they are typed).</p></li>
+</ol>
+<p>Further options: <code>--show=TEAM</code> (or <code>--show=all</code>) lists players; <code>--league="Name"</code> places teams that name no league; <code>--assign-jerseys</code> gives players without a number a free one, from 99 down; <code>--page=N</code> shows the next hundred. <code>rink import formats</code> prints the columns and layouts the importer reads.</p>
+
+<h2>Importing again</h2>
+<p>What is registered is recognised, not doubled: by its code when the file gives one; otherwise a league by its name or abbreviation, a team by its name (in its league first), a player by surname and given name on the team, with the jersey or birth date telling namesakes apart. A later file updates a league's or team's French name, arena, city, time zone and league, and a player's jersey, position, hand, import flag and a birth date that was unknown. Codes, a player's name and a known birth date do not change. An import adds and updates; it removes no one, and there are no transfers in this version: a player registered with another team under the same name and birth date is refused.</p>
+
+<h2>What is refused</h2>
+<ul>
+<li>A player with no jersey number (unless <code>--assign-jerseys</code>), a number outside 1 to 99, a number a team-mate keeps, a player with one name only.</li>
+<li>A code that is taken or is a word of the language; a name that fits two teams, until the file gives the code.</li>
+<li>A file that is not what its extension says, is password-protected, or exceeds the limits: 4 MiB and 60 000 rows a file; 48 MiB inflated and 64 sheets a workbook; 64 leagues, 1 000 teams and 80 players a team in the registry.</li>
+</ul>
+<div class="note"><p>A file is data, never a program. Nothing in it is evaluated — no formula, no macro, no XML entity beyond the five built-in ones, no external reference — and every reader stops at its limits. A workbook that would inflate beyond its bound is refused, not expanded.</p></div>
+
+<h2>Adding by hand</h2>
+<pre>rink addleague CODE "Name" ["Nom"] [ABBR]
+rink addteam CODE "Name" ["Nom"] ["Arena"] [--league=CODE] [--city=…]
+rink addplayer TEAM FIRST LAST JERSEY POS YYYY-MM-DD [L|R] [import]</pre>
+<p>The registry validates everything it is given: names are single-line text without control characters, dates are real calendar dates, a jersey is 1 to 99, a hand is L or R. Club quotas apply when a lineup is dressed: at most three overage (20-year-old) and two import players.</p>

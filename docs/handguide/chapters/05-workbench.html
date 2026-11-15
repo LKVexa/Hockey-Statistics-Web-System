@@ -1,0 +1,124 @@
+<h1 key="workbench">The workbench window</h1>
+<p class="lede">The window is a scorer's console on the left and the game it is building on the right. Everything typed in it runs in the engine in the window; everything it changes is recorded by the host before it is shown.</p>
+
+<h2>Layout</h2>
+<figure key="fig-window" caption="The regions of the workbench window">
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" font-family="Carlito, 'DejaVu Sans', FreeSans, sans-serif" font-size="8.4">
+  <rect x="2" y="2" width="636" height="296" rx="6" fill="#20242c" stroke="#1d2b4f"/>
+  <text x="16" y="22" fill="#e8edf5" font-weight="700" font-size="11">RINK-VT Workbench</text><text x="132" y="22" fill="#8a96ab">{{version}} · LK/Vexa edition · Photon host</text>
+  <rect x="12" y="30" width="616" height="18" rx="3" fill="#2a303b"/>
+  <text x="20" y="42" fill="#8a96ab">loopback <tspan fill="#5ad1e0">127.20.66.113</tspan> · static for 203.0.113.5 · league 4 teams · 1 game · <tspan fill="#7bd88f">recorded 9:26:17</tspan></text>
+  <rect x="470" y="33" width="64" height="12" rx="2" fill="#363d4a"/><text x="502" y="42" fill="#c7cfdd" text-anchor="middle" font-size="7.4">verify store</text>
+  <rect x="540" y="33" width="56" height="12" rx="2" fill="#363d4a"/><text x="568" y="42" fill="#c7cfdd" text-anchor="middle" font-size="7.4">stop host</text>
+  <rect x="12" y="56" width="330" height="208" rx="4" fill="#191c22" stroke="#3a4250"/>
+  <text x="20" y="70" fill="#5ad1e0" font-size="7.4">spiral // rink mode</text>
+  <g fill="#c7cfdd" font-family="'DejaVu Sans Mono', FreeMono, monospace" font-size="7.2">
+    <text x="20" y="86">rink G1 FOCO 0–0 KELW P1 19:59▶ 5v5 › FOCO SMIT S/2W</text>
+    <text x="20" y="97" fill="#7bd88f">COMMITTED   #1 P1 19:59  FOCO SMIT S  xG 0.1442  HIGH</text>
+    <text x="20" y="108">rink G1 FOCO 0–0 KELW P1 19:58▶ 5v5 › Q AUDIT</text>
+    <text x="20" y="119" fill="#8a96ab">time      operator  src       from           frame</text>
+    <text x="20" y="130">17:26:17  operator  terminal  127.20.66.113  FOCO SMIT S/2W</text>
+  </g>
+  <rect x="20" y="186" width="314" height="16" rx="3" fill="#232832" stroke="#e0a63a"/>
+  <text x="26" y="197" fill="#c7cfdd" font-family="'DejaVu Sans Mono', FreeMono, monospace" font-size="7.2">› FOCO GOUL S<tspan fill="#6b7486">/1W</tspan></text>
+  <text x="20" y="214" fill="#8a96ab" font-size="7.4">next: zone 1-9, shot type W S P B T, flags R U X, /x,y</text>
+  <g font-size="7"><rect x="20" y="222" width="46" height="12" rx="2" fill="#2f3542"/><text x="43" y="231" fill="#c7cfdd" text-anchor="middle">rink games</text>
+  <rect x="70" y="222" width="40" height="12" rx="2" fill="#2f3542"/><text x="90" y="231" fill="#c7cfdd" text-anchor="middle">rink sim 4</text>
+  <rect x="114" y="222" width="38" height="12" rx="2" fill="#2f3542"/><text x="133" y="231" fill="#c7cfdd" text-anchor="middle">Q BOX</text>
+  <rect x="156" y="222" width="44" height="12" rx="2" fill="#2f3542"/><text x="178" y="231" fill="#c7cfdd" text-anchor="middle">OFF-001</text>
+  <rect x="204" y="222" width="70" height="12" rx="2" fill="#2f3542"/><text x="239" y="231" fill="#c7cfdd" text-anchor="middle">your roster file…</text>
+  <rect x="278" y="222" width="50" height="12" rx="2" fill="#2f3542"/><text x="303" y="231" fill="#c7cfdd" text-anchor="middle">store verify</text></g>
+  <rect x="350" y="56" width="278" height="208" rx="4" fill="#191c22" stroke="#3a4250"/>
+  <text x="358" y="70" fill="#5ad1e0" font-size="7.4">G1 // live</text>
+  <text x="358" y="88" fill="#e8edf5" font-weight="700" font-size="10">FOCO 1 – 0 KELW</text><text x="470" y="88" fill="#7bd88f" font-size="8">P1 17:42 ▶  5v5</text>
+  <rect x="358" y="96" width="262" height="96" rx="20" fill="none" stroke="#5f6b80"/>
+  <line x1="489" y1="96" x2="489" y2="192" stroke="#b34a4a"/><line x1="456" y1="96" x2="456" y2="192" stroke="#3d6fb5"/><line x1="522" y1="96" x2="522" y2="192" stroke="#3d6fb5"/>
+  <circle cx="585" cy="140" r="5" fill="#5ad1e0"/><circle cx="570" cy="128" r="3" fill="none" stroke="#5ad1e0"/><circle cx="560" cy="152" r="2.5" fill="none" stroke="#5ad1e0"/><circle cx="405" cy="132" r="3" fill="none" stroke="#e0a63a"/>
+  <text x="358" y="204" fill="#8a96ab" font-size="7.2">○ shot · ● goal · size ∝ xG · click the rink: /x,y</text>
+  <g font-size="7.6"><text x="358" y="222" fill="#5ad1e0" font-weight="700">frame</text><text x="392" y="222" fill="#8a96ab">box</text><text x="418" y="222" fill="#8a96ab">events</text><text x="452" y="222" fill="#8a96ab">league</text></g>
+  <g font-family="'DejaVu Sans Mono', FreeMono, monospace" font-size="6.8" fill="#c7cfdd"><text x="358" y="236">01 93 2f 6a … 46 4f 43 4f  53 4d 49 54  53 00 00 00 … 9c 11 0e d4</text><text x="358" y="247" fill="#8a96ab">UUIDv7 · onset · commit · game · lamport · TEAM · PLAYER · STAT · MOD · x,y · CRC32C</text></g>
+  <text x="16" y="284" fill="#8a96ab" font-size="7.4">What runs here · Where the league is · Data (fictional; HK001 is a synthetic research laboratory)</text>
+  <g fill="#0d6b73" font-weight="700" font-size="8.6"><circle cx="606" cy="20" r="7"/><text x="606" y="23" fill="#fff" text-anchor="middle">1</text>
+  <circle cx="620" cy="40" r="7"/><text x="620" y="43" fill="#fff" text-anchor="middle">2</text>
+  <circle cx="330" cy="76" r="7"/><text x="330" y="79" fill="#fff" text-anchor="middle">3</text>
+  <circle cx="330" cy="194" r="7"/><text x="330" y="197" fill="#fff" text-anchor="middle">4</text>
+  <circle cx="330" cy="240" r="7"/><text x="330" y="243" fill="#fff" text-anchor="middle">5</text>
+  <circle cx="616" cy="76" r="7"/><text x="616" y="79" fill="#fff" text-anchor="middle">6</text>
+  <circle cx="616" cy="228" r="7"/><text x="616" y="231" fill="#fff" text-anchor="middle">7</text></g>
+</svg>
+</figure>
+<table class="t" key="tbl-regions" caption="The regions of the window (numbers as in Figure 5-1)">
+<colgroup><col style="width:6%"><col style="width:22%"><col style="width:72%"></colgroup>
+<thead><tr><th>#</th><th>Region</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Title</td><td>The product, the version and the edition</td></tr>
+<tr><td>2</td><td>Host strip</td><td>This computer's loopback address and the IP address it is static for; the league's size; the recording state; <b>verify store</b> and <b>stop host</b> ({{ref:host-strip}})</td></tr>
+<tr><td>3</td><td>Console</td><td>The output of every command, with colour, scrolling and a bounded history of about 4 000 output spans</td></tr>
+<tr><td>4</td><td>Command line</td><td>The prompt, the line being typed with its ghost text, and the hint below it ({{ref:input-assist}})</td></tr>
+<tr><td>5</td><td>Chips</td><td>Buttons that type a common command: league, scoring, queries, HK001, rosters and store</td></tr>
+<tr><td>6</td><td>Game panel</td><td>The score bar and clock, the rink with every shot and goal of the selected game, and the heat map</td></tr>
+<tr><td>7</td><td>Tabs</td><td><b>frame</b> (the bytes of the last line's frames), <b>box</b>, <b>events</b> and <b>league</b> (standings)</td></tr>
+</tbody>
+</table>
+
+<h2 key="host-strip">The host strip</h2>
+<p>The strip is the window's statement of where the league is. It names the loopback address the host gave this computer and the IP address that address is static for, the number of teams and games in the league, and the recording state:</p>
+<table class="t" key="tbl-states" caption="Recording states shown in the host strip">
+<colgroup><col style="width:28%"><col style="width:72%"></colgroup>
+<thead><tr><th>State</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><i>opening…</i>, <i>league loaded</i></td><td>The window is loading the league from the host, or has loaded and replayed it</td></tr>
+<tr><td><i>recording…</i> (amber)</td><td>A commit is on its way to the host; the command's result is not yet shown</td></tr>
+<tr><td><i>recorded</i> and a time (green)</td><td>The host has synced everything the last command changed</td></tr>
+<tr><td><i>NOT RECORDED</i> (red)</td><td>The host refused a commit or could not be reached; the window has loaded the league again ({{ref:refused}})</td></tr>
+<tr><td><i>host stopped</i> (red)</td><td>The host was stopped from the window; the league is on disk and the window can be closed</td></tr>
+</tbody>
+</table>
+<p><b>verify store</b> runs <code>store verify</code> ({{ref:store-commands}}). <b>stop host</b> commits anything outstanding and stops the host ({{ref:stopping}}).</p>
+
+<h2 key="input-assist">The command line and its assistance</h2>
+<p>The prompt is <code>rink-vt ›</code> outside RINK mode. In RINK mode it is the game's state: <code>rink G1 FOCO 0–0 KELW P1 20:00⏸ 5v5 ›</code> — the game, the score, the period and clock (▶ running, ⏸ stopped) and the strength. As a line is typed, the engine's assistant analyses it on every keystroke and the line takes one of four states.</p>
+<table class="t" key="tbl-assist" caption="States of the command line">
+<colgroup><col style="width:18%"><col style="width:82%"></colgroup>
+<thead><tr><th>State</th><th>Meaning and hint</th></tr></thead>
+<tbody>
+<tr><td>empty</td><td>The hint lists the common forms: in RINK mode <code>TEAM PLAYER STAT · Q BOX · LINE … · T 20:00 P1 · GO · UNDO · EXIT · help</code></td></tr>
+<tr><td>incomplete (amber)</td><td>The line can still become valid; the hint names what comes next and the first candidates</td></tr>
+<tr><td>valid</td><td>The line can be run as it stands; grey ghost text may offer a completion</td></tr>
+<tr><td>invalid (red)</td><td>The line cannot become valid; the hint gives the reason (an unknown player, a modifier the stat does not take, a team that is not playing)</td></tr>
+</tbody>
+</table>
+<table class="t" key="tbl-keys" caption="Keys of the command line">
+<colgroup><col style="width:22%"><col style="width:78%"></colgroup>
+<thead><tr><th>Key</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td><kbd>Enter</kbd></td><td>Runs the line. Its keystroke onset — the time of the first character — is kept and becomes the frame's onset time, so the clock latches at the keystroke, not at <kbd>Enter</kbd></td></tr>
+<tr><td><kbd>Tab</kbd></td><td>Completes: in RINK mode the assistant's completion; outside it, the command name and a space</td></tr>
+<tr><td><kbd>→</kbd> or <kbd>End</kbd> at the end of the line</td><td>Accepts the grey ghost text</td></tr>
+<tr><td><kbd>↑</kbd> <kbd>↓</kbd></td><td>Moves through the lines typed in this window</td></tr>
+</tbody>
+</table>
+<p>In RINK mode a line that is not a line of the scorer's language — <code>hk001</code>, <code>OFF-001</code>, <code>rink games</code> — runs as an ordinary command. Outside RINK mode, a command typed in capitals (<code>Q BOX</code>) is the same as in lower case (<code>q box</code>).</p>
+
+<h2>Chips</h2>
+<p>The chips below the console type a command as if it were typed and entered: <code>rink games</code>, <code>rink new FOCO KELW</code>, <code>rink sim 4</code>, <code>Q STANDINGS</code>; scoring lines such as <code>T 20:00 P1</code>, <code>GO</code>, <code>FOCO SMIT S/2W</code>, <code>UNDO</code>; queries; HK001 commands such as <code>OFF-001</code> and <code>case team FOCO --season</code>; roster commands; and <code>store</code> and <code>store verify</code>. A chip is a convenience: what it types is recorded exactly as the same line typed by hand.</p>
+
+<h2>The game panel</h2>
+<p>The score bar shows the selected game's teams and score, the period, the clock (counting down while it runs), the strength and the penalties being served. The rink shows every shot (○) and goal (●) of the game except the shootout, each sized by its expected-goals value, home attacking to the right; beneath them lies a heat map of the attempts (a box-kernel density of about 15 ft). Clicking the rink appends the clicked coordinates to the command line as <code>/x,y</code> in feet, mirrored for the away team so that the coordinates are always those of the team typed.</p>
+<p>The tabs show, for the selected game: <b>frame</b>, the bytes of the frames the last line compiled to, field by field and colour-coded, with the CRC-32C checked ({{ref:frame}}); <b>box</b>, each team's totals (shots on goal, expected goals for, Corsi for, high-danger chances for) and every skater with goals, assists, points, shots, individual expected goals and time on ice; <b>events</b>, the last forty events with clock, text, assists, expected goals and strength; and <b>league</b>, the standings with games played, wins, losses, overtime losses, points, goals and expected goals for and against.</p>
+
+<h2 key="store-commands">Workbench commands</h2>
+<p>Four commands belong to the window rather than to the engine.</p>
+<table class="t" key="tbl-store-commands" caption="Commands of the workbench itself">
+<colgroup><col style="width:18%"><col style="width:82%"></colgroup>
+<thead><tr><th>Command</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>store</code></td><td>Prints the product, version, edition and engine version; the runtime (the host's Python version, and "no Node.js"); this computer's loopback address, the IP address it is static for, the pool and the address listened on when it differs; the data folder, the number of games and the number of host events</td></tr>
+<tr><td><code>store verify</code></td><td>Asks the host to re-read the whole league from disk and check every seal and chain, repairing nothing, and prints <b>OK</b> or <b>DAMAGED</b>; the registry's seal; the event ledger's length; and, per game, its number of entries, its chain and the first digits of its tip hash ({{ref:verification-report}})</td></tr>
+<tr><td><code>help</code></td><td>Lists the workbench's commands. In RINK mode, <code>HELP</code> lists the whole scorer's language</td></tr>
+<tr><td><code>clear</code></td><td>Clears the console</td></tr>
+</tbody>
+</table>
+
+<h2 key="picker">Roster files from this computer</h2>
+<p>The chip <b>your roster file…</b> opens the system's file chooser for a file in one of the eight roster forms (<code>.csv .tsv .xlsx .md .txt .corpus .xml .edi</code>). The file is read in the window — it never travels to the host as a file — and handed to the engine's importer under its name, after which the window runs <code>rink import NAME</code>: a preview of what the file holds and the four-letter reference each league, team and player would receive. <code>rink import NAME --apply</code> registers it, and the registry change is recorded like any other ({{ref:rosters}}). <code>rink import examples</code> writes seven example files into the window's own file system, under <code>rosters/</code>.</p>

@@ -1,0 +1,106 @@
+<h1 key="engine">The engine</h1>
+<p class="lede">The engine is the part of RINK-VT that knows hockey: the game actor that folds frames into a game's state, the expected-goals model, the league-wide models, the heat maps and the HK001 laboratory. It is the same in both editions.</p>
+
+<h2 key="actor">The game actor</h2>
+<p>The actor is a pure fold of the accepted frames of one game. Replaying a game's ledger must reach the identical state digest; this is tested in the reference edition and checked by <code>rink ledger verify</code>. Within the fold:</p>
+<dl class="def">
+<dt>Clock latching</dt><dd>The scoreboard history is piecewise; each event takes the clock at its first keystroke, not at <kbd>Enter</kbd>. A late clock command takes effect at the newest moment the game knows, never before it, so the clock history stays ordered.</dd>
+<dt>Rosters</dt><dd>A player is found by code, <code>J##</code> or jersey. Club quotas: at most three overage (20-year-old) and two import players dressed.</dd>
+<dt>Locations</dt><dd>Explicit coordinates, then the zone's centroid, then the specification's prior (71, 0). A prior location gets no danger class.</dd>
+<dt>Causal chaining</dt><dd>Assists bind to the team's open goal for 15 s of operator time, and the window stays open until the next primary event; a third assist is rejected. A faceoff gives the opposing centre the complementary result automatically.</dd>
+<dt>Inferences</dt><dd>A rebound is an attempt within 3.0 s of the same team's attempt with no stoppage between. A rush is an attempt within 4.0 s of the same team's zone entry, zone exit, takeaway or odd-man rush, or of an opponent's giveaway.</dd>
+<dt>Penalties</dt><dd>Minors, double minors, majors, misconducts and game misconducts. At most two serve at once and the rest queue; a power-play goal releases the earliest-ending releasable minor; strength changes at the exact expiry time. A game misconduct ejects the player for the game: later events, shifts and lineups for the player are refused, and undoing the penalty lifts it.</dd>
+<dt>Plus/minus</dt><dd>Not awarded for power-play goals; empty-net goals count.</dd>
+<dt>Game end</dt><dd>In regulation; in a 3-on-3 sudden-death overtime of 5:00; or, in the regular season, by shootout (best of three, then sudden death). Playoff overtime periods are 20:00 sudden death.</dd>
+<dt>Corrections</dt><dd>A correction must leave its event valid, or it is refused and nothing changes ({{ref:corrections}}).</dd>
+<dt>Late frames</dt><dd>A terminal that catches up sends frames typed in the past. Each event keeps the clock of its own keystroke, but never rewinds the stint timeline: a late lineup or faceoff rotates lines at the latest time the game has seen. A <code>T</code> that moves the clock back ends the current stint where play had reached and starts a new one; time played again is counted again.</dd>
+<dt>Bounds</dt><dd>A game holds at most 20 000 accepted frames; a regular-season game has periods 1 to 5, other stages up to 12. A tracked team with fewer than three skaters listed falls back to the penalty count for its strength. The scoreboard's version only ever increases.</dd>
+</dl>
+
+<h2 key="xg">Expected goals and danger</h2>
+<p>Expected goals (xG) follow the specification's spatiotemporal log-odds model (its §5.1). On the canonical rink — 200 × 85 ft, centre ice at (0, 0), the acting team attacking the goal line at x = +89 with posts at (89, ±3) — an attempt at (x, y) has</p>
+<pre>dx = max(0.5, 89 − x)      d = √(dx² + y²)      θ = atan2(|y|, dx)
+φ  = arccos((d_L² + d_R² − 36) / (2 · d_L · d_R))                    the open-net angle between the posts
+logit = −1.35 − 0.048·d − 0.022·θ° + 0.031·φ° + 0.85·rebound + 0.55·rush + 1.10·royal road
+        + 0.35·[tip or snap] − 0.25·[slap] + 0.28·[shooter's strength 5v4, 5v3 or 4v3]
+xG = σ(logit), rounded to four decimal places</pre>
+<p>Within a flurry — attempts at most 3.0 s apart without a stoppage — each attempt is discounted by the chance that an earlier one already scored:</p>
+<pre>x̃G_1 = xG_1      x̃G_k = xG_k · Π_(j &lt; k) (1 − xG_j)</pre>
+<p>An attempt without coordinates is placed at its zone's centroid, and without a zone at the specification's prior (71, 0):</p>
+<table class="t" key="tbl-zones" caption="Zone centroids (feet)">
+<colgroup><col style="width:9%"><col style="width:29%"><col style="width:12%"><col style="width:9%"><col style="width:29%"><col style="width:12%"></colgroup>
+<thead><tr><th>Zone</th><th>Name</th><th>(x, y)</th><th>Zone</th><th>Name</th><th>(x, y)</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>low slot, crease</td><td>(80, 0)</td><td>6</td><td>right high flank</td><td>(56, 24)</td></tr>
+<tr><td>2</td><td>high slot</td><td>(69, 0)</td><td>7</td><td>left point</td><td>(38, −28)</td></tr>
+<tr><td>3</td><td>left circle</td><td>(72, −18)</td><td>8</td><td>centre point</td><td>(38, 0)</td></tr>
+<tr><td>4</td><td>right circle</td><td>(72, 18)</td><td>9</td><td>right point</td><td>(38, 28)</td></tr>
+<tr><td>5</td><td>left high flank</td><td>(56, −24)</td><td>—</td><td>prior</td><td>(71, 0)</td></tr>
+</tbody>
+</table>
+<p>The implementation matches the specification's Python reference (its Module A) on 600 vectors in the reference edition's tests. Danger classes follow the declared rule RINKVT-DANGER-v1:</p>
+<table class="t" key="tbl-danger" caption="Danger classes (RINKVT-DANGER-v1)">
+<colgroup><col style="width:16%"><col style="width:84%"></colgroup>
+<thead><tr><th>Class</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>HIGH</td><td>The inner slot (69 ≤ x ≤ 89 ft and |y| ≤ 9 ft), a rebound, or a royal-road pass</td></tr>
+<tr><td>MEDIUM</td><td>Distance at most 35 ft and angle at most 45°</td></tr>
+<tr><td>LOW</td><td>Every other attempt with a known location</td></tr>
+<tr><td>none</td><td>An attempt located only by the specification's prior</td></tr>
+</tbody>
+</table>
+
+<h2 key="stints">Stints</h2>
+<p>A stint is a stretch of play with fixed personnel and state. Stints are sliced at every lineup, faceoff, goal, penalty start and expiry, and period change. Each records the home and away skaters on the ice, the zone start, a power-play-expiry flag (within 15 s), the score state, Corsi, Fenwick, shots and expected goals for, and time on ice at even strength, on the power play and short-handed. The stints are what RAPM regresses on.</p>
+
+<h2 key="models">Models</h2>
+<table class="t" key="tbl-models" caption="The league-wide models">
+<colgroup><col style="width:14%"><col style="width:86%"></colgroup>
+<thead><tr><th>Model</th><th>Definition</th></tr></thead>
+<tbody>
+<tr><td>RAPM</td><td>The specification's Module B: two observations per stint, y = 3600 · Σx̃G / w with w the stint's seconds, offence and defence columns per player, the six context columns, a ridge penalty Λ = diag(λ_off, λ_def, 0) and a prior θ₀ = δ · last season (δ_off = 0.60, δ_def = 0.70); solved by Jacobi-preconditioned conjugate gradients. Context columns that never occur are dropped. The solution equals SciPy's <code>spsolve</code> on the specification's Python to better than 10⁻¹². <code>--str=5v5 · EV · PP · ALL</code></td></tr>
+<tr><td>GSAx</td><td>Raw Σ(x̃G − Y) over the unblocked shots a goalie faced, and its empirical-Bayes shrinkage EB = n/(n+κ) · raw + κ/(n+κ) · n · μ_prior, with κ = 1 200</td></tr>
+<tr><td>GAR, WAR</td><td>EVO + EVD (even-strength RAPM × even-strength time on ice) + PPO + SHD (special-teams RAPM) + finishing (goals − individual xG) + penalties − replacement; WAR = GAR / 6.1. Age adjustment: a natural cubic spline in exact age fitted to GAR per 60 when at least 15 skaters with birth dates span at least three ages</td></tr>
+<tr><td>NHLe</td><td>Points per game × 82 × T × f(age): T is the harmonic mean of the declared transition chains, f a natural cubic interpolating spline through the declared age multipliers</td></tr>
+</tbody>
+</table>
+<p>The models rest on declared assumptions, which every result prints with its calibration identifier, <code>RINKVT-SYNTH-v1</code>:</p>
+<table class="t" key="tbl-assumptions" caption="Declared assumptions of the models">
+<colgroup><col style="width:34%"><col style="width:66%"></colgroup>
+<thead><tr><th>Constant</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>μ_prior</td><td>−0.003 goals per unblocked shot</td></tr>
+<tr><td>Penalty cost</td><td>0.15 goals per minor taken</td></tr>
+<tr><td>Replacement level</td><td>0.10 goals per 60 below average</td></tr>
+<tr><td>Spline knots</td><td>15.5, 17, 18.5, 20, 22 years</td></tr>
+<tr><td>NHLe chains</td><td>CHL → NHL 0.30; CHL → AHL → NHL 0.48 × 0.61</td></tr>
+<tr><td>NHLe age multipliers</td><td>From 1.42 at 15 years to 0.85 at 24</td></tr>
+</tbody>
+</table>
+<div class="caution"><p>The NHLe factors are placeholders, not fitted values. A league that reports NHLe MUST replace them with its own calibration, and SHOULD treat every model as descriptive of the games recorded, under these assumptions.</p></div>
+<p>League-wide answers are cached until the league changes, and per-game facts are computed once per game state. The two model fits (RAPM and GAR) run in slices of about 10 ms. In the reference edition's measurements, a cold RAPM fit over 200 simulated games takes about 0.3 s and a repeat is immediate.</p>
+
+<h2 key="heat">Heat maps</h2>
+<p>The rink is a 120 × 51 lattice of 1⅔-ft cells. Eight maps are computed at once — home and away × attempts, goals, high-danger attempts and shots on goal — by a box kernel applied <i>k</i> times (about 15 ft at <i>k</i> = 4) in integer arithmetic. The reference edition runs the kernel on its Plume XPU (WebAssembly) and checks that the XPU, a JavaScript kernel and the LCUF-A reference interpreter give identical integers; this edition runs the JavaScript kernel, which gives the same integers.</p>
+
+<h2 key="hk001">HK001</h2>
+<p>HK001 MSSL 2.3.0 is a deterministic synthetic research laboratory written in Go. The engine carries a port of it that reproduces the Go program exactly — including its floating-point operation order, its JSON encoding and its input adapter — so that a receipt computed in the workbench is the receipt the Go program computes.</p>
+<ul>
+<li><b>{{n_codes}} computation codes</b>, each a command: 109 hockey equations (<code>OFF-001</code> … <code>ADV-005</code>); 32 Master-Law models and 276 traced intermediates; 26 X8S models and 67 intermediates; 26 8Sphere models and 17 intermediates; and 10 receipt summaries (<code>HK-GATE</code> … <code>HK-SHA</code>). Appendix E lists them.</li>
+<li><b>{{n_inputs}} input codes</b>, <code>HKI-001</code> … <code>HKI-109</code>, each with its mnemonic, unit, scope, derivation class and the tokens that feed it (Appendix D).</li>
+<li>The <b>bridge</b> fills all 109 inputs for a team over a game or the season from the ledger, recording each value's provenance:</li>
+</ul>
+<table class="t" key="tbl-provenance" caption="Provenance of an HK001 input filled from the ledger">
+<colgroup><col style="width:16%"><col style="width:84%"></colgroup>
+<thead><tr><th>Provenance</th><th>Where the value comes from</th></tr></thead>
+<tbody>
+<tr><td>LEDGER</td><td>Counted tokens</td></tr>
+<tr><td>DERIVED</td><td>State, inference or location classes</td></tr>
+<tr><td>RESULT</td><td>Completed games</td></tr>
+<tr><td>LEAGUE</td><td>Pooled over the scope: league save percentage, shots per game, score-state Corsi weights shrunk with 50 pseudo-attempts</td></tr>
+<tr><td>OPPONENT</td><td>The opponents' own inputs, weighted by games; the opponent strength is HK001's TEAM-012 on each opponent</td></tr>
+<tr><td>PRORATED</td><td>A token family never logged in the scope: HK001's baseline × games played / 82, its own convention, named in the notes</td></tr>
+</tbody>
+</table>
+<p><b>Fidelity.</b> In the reference edition's tests, the demonstration receipt's canonical SHA-256 is <code>faa8e35a…</code> on both of Go's <code>Exp</code> code paths and the printed receipt is byte-identical to the Go program's; 2 540 bundled Go math vectors pass; and 568 input files recorded from HK001's own Go adapter and engine are replayed (accepted or refused, error text, parsed request, receipt). The comparisons are described in the reference edition's <code>docs/RINK-VT.md</code>.</p>
+<p><b>Properties of HK001 that users meet.</b> A small sample can make HK001 refuse a case: zero denominators (one game in progress) produce NaN, which Go's JSON encoder refuses, so the receipt is <code>NO_RECEIPT</code> while every code is still evaluated; a season scope gives receipts. HK001's lattice quantisation clamps each Master-Law coordinate to {−0.1, 0, +0.1}; it is ported as it is (<code>case cal lattice_bound 10</code> gives a wider lattice). These are properties of the laboratory, kept for exactness, not faults of the port.</p>

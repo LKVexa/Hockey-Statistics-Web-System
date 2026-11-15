@@ -1,0 +1,81 @@
+<h1 key="architecture">Architecture</h1>
+<p class="lede">Two processes, one boundary between them, and one folder on disk. This chapter maps the release onto that structure and follows a command through it.</p>
+
+<h2 key="boundaries">Processes and trust boundaries</h2>
+<figure key="fig-trust" caption="Processes, the boundary between them, and what each trusts">
+<svg viewBox="0 0 640 210" xmlns="http://www.w3.org/2000/svg" font-family="Carlito, 'DejaVu Sans', FreeSans, sans-serif" font-size="8.6">
+  <rect x="6" y="20" width="200" height="150" rx="6" fill="#f3f5f9" stroke="#1d2b4f"/>
+  <text x="18" y="38" font-weight="700" fill="#1d2b4f" font-size="10">Renderer process</text>
+  <text x="18" y="54" fill="#3b4558">the workbench page and the engine</text>
+  <text x="18" y="70" fill="#3b4558">holds: the league in memory</text>
+  <text x="18" y="86" fill="#3b4558">trusts: the host's answers</text>
+  <text x="18" y="102" fill="#3b4558">reaches: only its own origin</text>
+  <text x="18" y="118" fill="#3b4558">(CSP default-src 'self')</text>
+  <text x="18" y="140" fill="#0d6b73" font-weight="650">profile: browser_profile/</text>
+  <rect x="434" y="20" width="200" height="150" rx="6" fill="#f3f5f9" stroke="#1d2b4f"/>
+  <text x="446" y="38" font-weight="700" fill="#1d2b4f" font-size="10">Host process</text>
+  <text x="446" y="54" fill="#3b4558">photon/rinkvt.py and photon/host/</text>
+  <text x="446" y="70" fill="#3b4558">holds: the league on disk</text>
+  <text x="446" y="86" fill="#3b4558">trusts: nothing a request says</text>
+  <text x="446" y="102" fill="#3b4558">checks: Host, token, Origin, JSON,</text>
+  <text x="446" y="118" fill="#3b4558">seals of every entry</text>
+  <text x="446" y="140" fill="#0d6b73" font-weight="650">data folder: exclusive lock</text>
+  <rect x="236" y="56" width="168" height="74" rx="6" fill="#fff" stroke="#9b1c1c" stroke-dasharray="4 2"/>
+  <text x="320" y="74" text-anchor="middle" font-weight="700" fill="#9b1c1c">boundary</text>
+  <text x="320" y="90" text-anchor="middle" fill="#3b4558">HTTP/1.1 on 127.x.y.z:port</text>
+  <text x="320" y="104" text-anchor="middle" fill="#3b4558">X-VEC1-Token per launch</text>
+  <text x="320" y="118" text-anchor="middle" fill="#3b4558">JSON in, JSON or bytes out</text>
+  <line x1="206" y1="93" x2="236" y2="93" stroke="#1d2b4f" stroke-width="1.2"/><line x1="404" y1="93" x2="434" y2="93" stroke="#1d2b4f" stroke-width="1.2"/>
+  <text x="6" y="196" fill="#566079" font-size="8">Other programs of the same user are inside the boundary of the computer, not of the workbench ({{ref:residual}}).</text>
+</svg>
+</figure>
+<p>The renderer computes; the host keeps. The renderer reaches nothing but its own origin, the host, and the host trusts nothing a request says: it checks the request's Host, token, origin and form, and every ledger entry against the engine's own seals, before it writes. The host's failures are the renderer's truth — a refusal makes the window reload — and the renderer's failures cannot reach the disk unchecked.</p>
+
+<h2 key="module-map">Module map</h2>
+<table class="t" key="tbl-module-map" caption="The release, by folder">
+<colgroup><col style="width:34%"><col style="width:66%"></colgroup>
+<thead><tr><th>Path</th><th>Role</th></tr></thead>
+<tbody>
+<tr><td><code>photon/rinkvt.py</code></td><td>Entry point: options, the start sequence, the instance lock, signals ({{ref:start-sequence}})</td></tr>
+<tr><td><code>photon/host/__init__.py</code></td><td>Product, edition and version constants</td></tr>
+<tr><td><code>photon/host/server.py</code></td><td>The HTTP server: guards, routes, headers, the page ({{ref:api}})</td></tr>
+<tr><td><code>photon/host/store.py</code></td><td>The league store: registry, game ledgers, event ledger, commits, verification ({{ref:formats}})</td></tr>
+<tr><td><code>photon/host/loopback.py</code></td><td>Canonical keys, pools, slots, the lease table and its lock ({{ref:loopback}})</td></tr>
+<tr><td><code>photon/host/integrity.py</code></td><td>The release manifest and its two scopes ({{ref:manifest}})</td></tr>
+<tr><td><code>photon/host/renderer.py</code></td><td>Finding and opening the renderer window ({{ref:renderer}})</td></tr>
+<tr><td><code>photon/host/crc32c.py</code> · <code>strictjson.py</code></td><td>CRC-32C as the engine computes it; the strict JSON reader every request and stored document goes through</td></tr>
+<tr><td><code>ui/workbench.template.html</code> · <code>workbench.css</code></td><td>The page's markup and styles: no inline script, style or handler</td></tr>
+<tr><td><code>ui/loader.js</code> · <code>ui/app.js</code></td><td>The module loader; the workbench itself (terminal, panel, recording)</td></tr>
+<tr><td><code>ui/workbench.js</code> · <code>workbench.html</code></td><td>Built by <code>tools/bundle.py</code>: the loader holding the engine, the rink drawing and the page; the page with its version</td></tr>
+<tr><td><code>engine/rink/shared/</code></td><td>Codes, the lexer (<code>hcl.js</code>), the wire format (<code>wire.js</code>), expected goals, formatting, the assistant, hashing</td></tr>
+<tr><td><code>engine/rink/server/</code></td><td>Registry, game actor, derivations, models, heat maps, queries, HK001 bridge, simulator, roster importer, the service</td></tr>
+<tr><td><code>engine/rink/hk001/</code></td><td>The HK001 port: Go-exact mathematics, the engine, input adapter, inputs, catalog, lab; its third-party notices</td></tr>
+<tr><td><code>engine/src/main/spiral/</code></td><td>The command registry and the command pack (<code>rink</code>, <code>q</code>, <code>hk001</code>, <code>case</code>, <code>corpus</code>, <code>tokens</code> and the code commands)</td></tr>
+<tr><td><code>engine/rink/term/</code> · <code>engine/rink/web/</code></td><td>Terminal rendering of answers; the rink drawing</td></tr>
+<tr><td><code>tools/</code></td><td><code>bundle.py</code>, <code>seal_release.py</code>, <code>contracts.py</code>, <code>leases.py</code>, <code>verify.py</code></td></tr>
+<tr><td><code>contracts/</code> · <code>tests/</code> · <code>docs/</code></td><td>MSSL records and JA21 sources; the test suite; this guide and its sources</td></tr>
+</tbody>
+</table>
+
+<h2 key="bundle">The renderer bundle</h2>
+<p>The engine is a set of CommonJS modules written for Node.js. <code>tools/bundle.py</code> places each module's source text, unchanged, in a function of a module table, and each data table (the Mathematical Corpus, the HTML5 entity table, the Go tables) in a data table, inside the loader. The loader resolves <code>require</code> as Node.js does for relative paths and provides the few built-ins the modules name: <code>path</code>, <code>events</code>, <code>os</code>, <code>process</code>, <code>Buffer</code> (on <code>Uint8Array</code>) and <code>crypto</code> hashing (SHA-1 and SHA-256 from the engine's own <code>rink/shared/hash.js</code>). It provides no file system: a module that would read a file is told that the renderer has none and that the host keeps the league. The bundle is <code>ui/workbench.js</code>: the loader with the engine, then the rink drawing, then <code>ui/app.js</code>. <code>bundle.py --check</code> rebuilds it in memory and compares, so a stale bundle is found by the verifier.</p>
+<p>The engine's service takes three options that let a host keep the league outside it, added in the reference edition for this edition: <code>registryData</code>, a league to start from; <code>preload</code>, a function giving each game's stored ledger entries when the game opens; and <code>store</code>, a description of where the host keeps the league, which the service then reports as durable. With them the engine runs in memory and replays what the host stored, exactly as the reference edition replays its own ledgers.</p>
+<h3 key="engine-options">Host options of the engine</h3>
+<table class="t" caption="The service options a host uses">
+<colgroup><col style="width:22%"><col style="width:78%"></colgroup>
+<thead><tr><th>Option</th><th>Use in this edition</th></tr></thead>
+<tbody>
+<tr><td><code>registryData</code></td><td>The parsed registry the host sent; the service adopts it instead of seeding the demonstration clubs</td></tr>
+<tr><td><code>preload(game)</code></td><td>Returns the game's stored entries, frame and meta line by turn, which the actor replays when the game opens</td></tr>
+<tr><td><code>store</code></td><td>"Photon host · sealed registry and hash-chained ledgers on this computer": shown in the RINK banner and <code>rink status</code> as the ledger's durability</td></tr>
+</tbody>
+</table>
+
+<h2 key="life-of-a-command">The life of a command</h2>
+<p>A scored line passes through these modules, in order: the command line (<code>ui/app.js</code>) keeps the keystroke onset; the RINK mode of the command pack (<code>commands/rink.js</code>) hands the line to the lexer (<code>hcl.js</code>), which parses it; the compiler (<code>wire.js</code>) makes the frames; the in-process client (<code>inproc.js</code>) submits them to the service (<code>service.js</code>), which checks the clock skew and hands them to the game's actor (<code>actor.js</code>), which applies them atomically; the service appends each accepted frame and its meta line to the game's ledger; <code>app.js</code> commits the new entries to the host (<code>server.py</code> → <code>store.py</code>), waits for the answer, and the command pack prints the result through the terminal renderer (<code>term/render.js</code>). The game panel then redraws from the actor's state.</p>
+
+<h2>Concurrency</h2>
+<p>The renderer is single-threaded: one command runs at a time, and the window waits for a commit's answer before the next line's result. The host serves each request on a thread of its own; the store admits and writes one commit at a time under a store lock, the event ledger appends under a lock of its own, and a lease allocation takes the lease table's file lock. A verification takes the store lock, so it never reads a half-written commit.</p>
+
+<h2>Dependencies</h2>
+<p>The host uses the Python standard library only: <code>http.server</code>, <code>socket</code>, <code>ipaddress</code>, <code>hashlib</code>, <code>hmac</code>, <code>secrets</code>, <code>json</code>, <code>base64</code>, <code>threading</code>, <code>signal</code>, <code>subprocess</code> and <code>webbrowser</code> among them. The renderer is the installed browser. Building this guide uses Playwright for Python and pypdf; running the workbench uses neither.</p>

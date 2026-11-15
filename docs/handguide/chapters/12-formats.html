@@ -1,0 +1,108 @@
+<h1 key="formats">Data formats</h1>
+<p class="lede">Every byte the workbench keeps has a defined layout and a seal. This chapter is the normative description of each format: the frame and its meta line, the registry, the game ledger, the event ledger and the release manifest.</p>
+
+<h2 key="frame">The 64-byte frame</h2>
+<p>A frame is one fact, exactly one cache line long. The engine compiles every line to frames, and the frames are what the ledger keeps: the statistics are always computed again from them. All integers are big-endian.</p>
+<figure key="fig-frame" caption="Layout of the 64-byte frame">
+<svg viewBox="0 0 640 74" xmlns="http://www.w3.org/2000/svg" font-family="Carlito, 'DejaVu Sans', FreeSans, sans-serif" font-size="7.6">
+  <g stroke="#fff" stroke-width="1">
+    <rect x="0" y="10" width="160" height="30" fill="#1d2b4f"/><rect x="160" y="10" width="80" height="30" fill="#30507a"/><rect x="240" y="10" width="80" height="30" fill="#3f6a95"/>
+    <rect x="320" y="10" width="40" height="30" fill="#0d6b73"/><rect x="360" y="10" width="40" height="30" fill="#2f8a8f"/><rect x="400" y="10" width="40" height="30" fill="#8a5a00"/>
+    <rect x="440" y="10" width="40" height="30" fill="#a87420"/><rect x="480" y="10" width="40" height="30" fill="#9b1c1c"/><rect x="520" y="10" width="40" height="30" fill="#b84a4a"/>
+    <rect x="560" y="10" width="40" height="30" fill="#5b6478"/><rect x="600" y="10" width="40" height="30" fill="#2b2f3a"/>
+  </g>
+  <g fill="#fff" text-anchor="middle" font-weight="650"><text x="80" y="29">UUIDv7</text><text x="200" y="29">onset ns</text><text x="280" y="29">commit ns</text><text x="340" y="29">game</text><text x="380" y="29">Lamport</text>
+  <text x="420" y="29">TEAM</text><text x="460" y="29">PLAYER</text><text x="500" y="29">STAT</text><text x="540" y="29">MOD</text><text x="580" y="29">x, y</text><text x="620" y="29">CRC</text></g>
+  <g fill="#566079" text-anchor="middle"><text x="80" y="54">0–15</text><text x="200" y="54">16–23</text><text x="280" y="54">24–31</text><text x="340" y="54">32–35</text><text x="380" y="54">36–39</text><text x="420" y="54">40–43</text>
+  <text x="460" y="54">44–47</text><text x="500" y="54">48–51</text><text x="540" y="54">52–55</text><text x="580" y="54">56–59</text><text x="620" y="54">60–63</text></g>
+</svg>
+</figure>
+<table class="t" key="tbl-frame" caption="Fields of the 64-byte frame">
+<colgroup><col style="width:11%"><col style="width:20%"><col style="width:69%"></colgroup>
+<thead><tr><th>Bytes</th><th>Field</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td>0–15</td><td>UUID</td><td>A UUIDv7 (RFC 9562): the frame's identity. A frame received twice answers <code>DUPLICATE</code></td></tr>
+<tr><td>16–23</td><td>Onset</td><td>The keystroke onset, nanoseconds since the Unix epoch: the time at which the event latches the clock</td></tr>
+<tr><td>24–31</td><td>Commit</td><td>The time <kbd>Enter</kbd> was pressed, nanoseconds; never before the onset, and at most 5 s ahead of the service's clock</td></tr>
+<tr><td>32–35</td><td>Game</td><td>The first four bytes of the game's UUID: a frame belongs to exactly one game</td></tr>
+<tr><td>36–39</td><td>Lamport</td><td>A Lamport counter, increased by the compiling client with every frame</td></tr>
+<tr><td>40–43</td><td>TEAM</td><td>The team code, four ASCII letters; in a system frame, <code>!</code> and a three-letter opcode</td></tr>
+<tr><td>44–47</td><td>PLAYER</td><td>The player code, ASCII, NUL-padded</td></tr>
+<tr><td>48–51</td><td>STAT</td><td>The stat token, ASCII, NUL-padded</td></tr>
+<tr><td>52–55</td><td>MOD</td><td>The modifier, at most four ASCII characters in canonical order, NUL-padded</td></tr>
+<tr><td>56–59</td><td>x, y</td><td>Two signed 16-bit integers in tenths of a foot; −32 768 in both means "no coordinates" (the zone centroid or the specification's prior applies)</td></tr>
+<tr><td>60–63</td><td>CRC</td><td>CRC-32C (Castagnoli) of bytes 0–59</td></tr>
+</tbody>
+</table>
+<h3>System frames</h3>
+<p>A system frame carries <code>!</code> and an opcode in bytes 40–43: <code>!UND</code> (undo), <code>!DEL</code> (delete an event), <code>!FXP</code>, <code>!FXS</code>, <code>!FXC</code>, <code>!FXA</code> (the patches of <code>FIX</code>: player and team, stat and modifier, coordinates, assists), <code>!LIN</code> and <code>!LIA</code> (a lineup and its continuation), and <code>!CLK</code> (a clock command).</p>
+<h3 key="strict-decoding">Strict decoding</h3>
+<p>A frame is untrusted bytes, so it is decoded strictly: every text field is canonical — A–Z and 0–9, NUL-padded, nothing after the first NUL; coordinates are both present or both absent and on the 200 × 85 ft ice; a clock time is at most 20:00, a period at most 12, an assist slot 1 or 2. The actor then checks the stat and modifier against the lexer's grammar, canonical order included. A frame that fails is rejected as malformed and nothing it held is echoed; the audit trail shows <i>(malformed frame)</i>.</p>
+
+<h2 key="meta">The 64-byte meta line</h2>
+<p>Each accepted frame is stored with a meta line: who entered it, when it was received and from where. The meta line is what lets a replay apply each <code>UNDO</code> against the operator who typed it. Its integers are little-endian.</p>
+<table class="t" key="tbl-meta" caption="Fields of the 64-byte meta line">
+<colgroup><col style="width:11%"><col style="width:20%"><col style="width:69%"></colgroup>
+<thead><tr><th>Bytes</th><th>Field</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td>0–3</td><td>Magic</td><td><code>CMT1</code>, the unsigned integer 0x31544D43</td></tr>
+<tr><td>4–7</td><td>Index</td><td>The entry's index in the game's ledger</td></tr>
+<tr><td>8–15</td><td>Received</td><td>The time the service received the frame, nanoseconds since the Unix epoch</td></tr>
+<tr><td>16–19</td><td>Source</td><td>The source as an ASCII digit, NUL-padded: 0 terminal, 1 web, 2 sim, 3 replay, 4 api, 5 test. The workbench's own lines are terminal lines</td></tr>
+<tr><td>20–51</td><td>Operator</td><td>The operator's identity, ASCII, NUL-padded (<code>operator</code> in this edition)</td></tr>
+<tr><td>52–55</td><td>Loopback</td><td>The four octets of the static loopback address of the computer that typed the line (127.x.y.z), or zeros ({{ref:loopback}})</td></tr>
+<tr><td>56–59</td><td>Spare</td><td>Zeros</td></tr>
+<tr><td>60–63</td><td>CRC</td><td>CRC-32C of bytes 0–59</td></tr>
+</tbody>
+</table>
+
+<h2 key="registry">The registry</h2>
+<p>The registry is one JSON document, <code>league/registry/registry.json</code>, written whole at every change, serialised with one-space indentation and a final newline, and sealed by <code>registry.sha256</code>, which holds its SHA-256 and the name <code>registry.json</code> in the form <code>sha256sum -c</code> reads.</p>
+<table class="t" key="tbl-registry" caption="Top-level members of the registry">
+<colgroup><col style="width:18%"><col style="width:82%"></colgroup>
+<thead><tr><th>Member</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td><code>schema</code></td><td><code>rinkvt.registry.v1</code>; a registry of another schema is not opened</td></tr>
+<tr><td><code>leagues</code></td><td>Leagues: code, English and French names, abbreviation</td></tr>
+<tr><td><code>teams</code></td><td>Teams: code, names, arena, city, time zone, league</td></tr>
+<tr><td><code>players</code></td><td>Players: team, code, names, jersey, position, hand, birth date, import flag</td></tr>
+<tr><td><code>games</code></td><td>Games: key (<code>G1</code> …), UUID, home and away, date, season, stage, starters, creation time and identity hash</td></tr>
+<tr><td><code>notes</code></td><td>Notes on teams, by tenant</td></tr>
+<tr><td><code>seq</code></td><td>The counters from which game keys and note identifiers are drawn</td></tr>
+</tbody>
+</table>
+<p>The host checks the members it depends on ({{ref:store-checks}}); the engine validates the rest when it adopts the registry: names are single-line text without control characters, dates are real calendar dates, a jersey is 1–99, a hand is L or R.</p>
+
+<h2 key="ledger-format">Game ledger files</h2>
+<p>Each game has one ledger file, <code>league/ledger/&lt;key&gt;-&lt;uuid8&gt;.jsonl</code>, where <i>uuid8</i> is the first eight hexadecimal digits of the game's UUID. It is a sequence of lines of compact JSON, each ended by LF. The first line is the header:</p>
+<pre>{"ledger":"rinkvt.vec1-ledger.v1","game":"G1","uuid":"3913755b-7df0-56f3-a423-d01281f42143","created":"2026-11-15T17:26:16.214512Z"}</pre>
+<p>Every later line holds one ledger entry pair — a frame and its meta line — and the chain:</p>
+<pre>{"n":0,"frame":"(128 hex digits)","meta":"434d5431…(128 hex digits in all)","prev":"…","hash":"…"}</pre>
+<table class="t" key="tbl-ledger-line" caption="Members of a ledger line">
+<colgroup><col style="width:14%"><col style="width:86%"></colgroup>
+<thead><tr><th>Member</th><th>Content</th></tr></thead>
+<tbody>
+<tr><td><code>n</code></td><td>The pair's index, from 0, without gaps</td></tr>
+<tr><td><code>frame</code></td><td>The 64-byte frame, as 128 lower-case hexadecimal digits</td></tr>
+<tr><td><code>meta</code></td><td>The 64-byte meta line, likewise</td></tr>
+<tr><td><code>prev</code></td><td>The <code>hash</code> of the line before; for <code>n</code> = 0, the genesis value below</td></tr>
+<tr><td><code>hash</code></td><td>SHA-256(prev ‖ LF ‖ frame ‖ meta ‖ LF ‖ decimal <i>n</i>), over the hexadecimal texts</td></tr>
+</tbody>
+</table>
+<pre>genesis(key, uuid) = SHA-256("RINK-VT ledger 1" ‖ NUL ‖ key ‖ NUL ‖ uuid)
+hash_n             = SHA-256(prev_n ‖ LF ‖ frame_hex_n ‖ meta_hex_n ‖ LF ‖ decimal(n)),   prev_0 = genesis, prev_n = hash_(n−1)</pre>
+<p>A ledger is valid when its header names its game, UUID and format, every line has exactly these five members, its sequence and previous hash continue the chain, its hash is right, both entries are 64 bytes, and the pair passes the engine's seals (the frame's CRC-32C and game, the meta line's magic and CRC-32C). The chain's last hash, the <i>tip</i>, summarises the whole ledger: <code>store verify</code> prints its first digits.</p>
+
+<h2 key="events">The event ledger</h2>
+<p><code>events.jsonl</code> records what the host did, chained like a ledger:</p>
+<pre>{"seq":9,"at":"2026-11-15T17:28:42.113413Z","event":"commit","detail":{"registry":true,"pairs":3939,"games":["G2","G3","G4","G5"]},"prev":"…","hash":"…"}</pre>
+<p>The hash of a line is SHA-256(prev ‖ the compact JSON, with sorted keys, of its <code>seq</code>, <code>at</code>, <code>event</code> and <code>detail</code>); the first <code>prev</code> is SHA-256("RINK-VT events 1"). The events are <code>start</code> (version, lease, address bound, port), <code>commit</code> (whether the registry changed, the number of pairs, the games), <code>stop</code>, and <code>internal_error</code> (where, and the error's type — never a request's content).</p>
+
+<h2>The lease table</h2>
+<p>The lease table is specified in {{ref:lease-file}}.</p>
+
+<h2 key="manifest">The release manifest</h2>
+<p><code>RELEASE_MANIFEST.json</code> holds the product, edition, version, engine version, the time it was generated, and <code>files</code>: an object mapping every file of the release — paths relative to the release folder with forward slashes — to its SHA-256. It omits itself, <code>.git</code>, <code>runtime</code>, <code>__pycache__</code>, <code>node_modules</code>, <code>.pytest_cache</code> and compiled Python files. The <i>code</i> scope (checked at every start) is the files under <code>photon/</code>, <code>ui/</code> and <code>engine/</code>, listed or not; the <i>all</i> scope (checked by a verification) is every file.</p>
+
+<h2>Test values</h2>
+<p>An implementation of these formats can be checked against these values: CRC-32C of the ASCII text <code>123456789</code> is 0xE3069283 (3 808 858 755); SHA-256 of the empty text is <code>e3b0c442…b855</code> and of <code>abc</code> is <code>ba7816bf…15ad</code> (FIPS 180-4); and the lease vectors of {{ref:tbl-lease-vectors}}.</p>

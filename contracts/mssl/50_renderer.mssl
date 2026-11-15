@@ -1,0 +1,15 @@
+MSSL{
+α≡{"format":"0.3","profile":"basic_mssl.executable.3","record":"MSSL.Document","source_language":"MSSL","source_version":"0.3"},
+ι≡"mssl:rinkvt:lkvexa:renderer:2.5.0-lkvexa.1",
+λ≡"rinkvt.lkvexa.renderer",
+ℛ≡{"0001":"module(\"rinkvt.lkvexa.renderer\")","0002":"learn(\"component\",literal(\"photon/host/renderer.py, ui/\"))","0003":"learn(\"contract\",literal(\"opens the workbench in an installed Edge, Chrome or Chromium in app mode on a profile of its own under the data folder; the page loads only from the host; without such a browser the host says so, and uses the ordinary browser only with --allow-default-browser-fallback\"))","0004":"learn(\"page_policy\",literal(\"default-src 'self'; script-src 'self'; style-src 'self'; no inline script, style or event handler; no external fonts or scripts\"))","0005":"learn(\"maturity\",literal(\"OPERATIONAL\"))","0006":"learn(\"evidence\",literal(\"[\\\"tests/test_browser.py\\\",\\\"tests/test_release.py\\\"]\"))"},
+π≡[],
+δ≡6,
+τ≡0,
+μ≡{"learn.component":"photon/host/renderer.py, ui/","learn.contract":"opens the workbench in an installed Edge, Chrome or Chromium in app mode on a profile of its own under the data folder; the page loads only from the host; without such a browser the host says so, and uses the ordinary browser only with --allow-default-browser-fallback","learn.page_policy":"default-src 'self'; script-src 'self'; style-src 'self'; no inline script, style or event handler; no external fonts or scripts","learn.maturity":"OPERATIONAL","learn.evidence":["tests/test_browser.py","tests/test_release.py"]},
+ρ≡{"assertions":[],"emissions":[],"prints":[]},
+χ≡[],
+η≡{"events":[],"state":{"component":"photon/host/renderer.py, ui/","contract":"opens the workbench in an installed Edge, Chrome or Chromium in app mode on a profile of its own under the data folder; the page loads only from the host; without such a browser the host says so, and uses the ordinary browser only with --allow-default-browser-fallback","page_policy":"default-src 'self'; script-src 'self'; style-src 'self'; no inline script, style or event handler; no external fonts or scripts","maturity":"OPERATIONAL","evidence":["tests/test_browser.py","tests/test_release.py"]}},
+ν≡{}
+,κ≡"sha256:1c494421e0fbab7f5bc6116a91b02383c430a3e882d292eef8c17265d29f4d47"
+}⇒⊤

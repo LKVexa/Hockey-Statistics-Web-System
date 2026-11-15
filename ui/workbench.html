@@ -1,0 +1,64 @@
+<!doctype html>
+<!-- RINK-VT 2.5.0-lkvexa.1 · LK/Vexa edition (Photon-hosted) · Copyright (C) 2026 RUSSELL PHILIP SMITHSON · SPDX-License-Identifier: GPL-3.0-only · This program comes with no warranty. It is free software under the GNU General Public License, version 3 only: see LICENSE. -->
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="rinkvt-token" content="__RINKVT_TOKEN__">
+<meta name="rinkvt-local" content="__RINKVT_LOCAL__">
+<meta name="rinkvt-client" content="__RINKVT_CLIENT__">
+<title>RINK-VT Workbench · LK/Vexa</title>
+<link rel="stylesheet" href="/workbench.css">
+
+<header>
+  <h1><b>RINK-VT</b> Workbench</h1><span class="ver">2.5.0-lkvexa.1 · LK/Vexa edition · Photon host</span>
+  <p>One hockey fact per line, in a scorer's language: the engine runs in this window, and the Photon host keeps the league on this computer. Every line is recorded before its result is shown.</p>
+</header>
+<div class="host" id="host" aria-live="polite">
+  <span>loopback <b class="lb" id="h-local">—</b></span><span>static for <b id="h-client">—</b></span>
+  <span>league <b id="h-league">—</b></span><span class="st" id="h-state" data-state="busy">opening…</span>
+  <button type="button" id="h-verify" title="re-read the league from disk and check every seal and chain">verify store</button>
+  <button type="button" id="h-stop" title="stop the Photon host (the league is already on disk)">stop host</button>
+</div>
+
+<main>
+  <section class="frame" id="console" aria-label="terminal">
+    <span class="tag">spiral // rink mode</span>
+    <div id="out" role="log" aria-live="polite" tabindex="0"></div>
+    <div class="inrow" data-state="empty"><span id="prompt"></span><div class="field"><div id="ghost" aria-hidden="true"></div><input id="cmd" type="text" spellcheck="false" autocomplete="off" autocapitalize="characters" aria-label="command line"></div></div>
+    <div id="hint" role="status"></div>
+    <div class="chips" id="chips">
+      <span class="sep">league</span>
+      <button>rink games</button><button>rink new FOCO KELW</button><button>rink sim 4</button><button>Q STANDINGS</button>
+      <span class="sep">score</span>
+      <button>T 20:00 P1</button><button>GO</button><button>FOCO SMIT S/2W</button><button>FOCO GOUL G/1T</button><button>FOCO HALA A</button><button>KELW BARK P2/TRP</button><button>UNDO</button>
+      <span class="sep">query</span>
+      <button>Q BOX</button><button>Q XG</button><button>Q AUDIT</button><button>Q RAPM --min=5</button>
+      <span class="sep">HK001</span>
+      <button>OFF-001</button><button>HKI-002 300</button><button>case team FOCO --season</button><button>hk001</button>
+      <span class="sep">rosters</span>
+      <button>rink import examples</button><button>rink import rosters/roster.md</button><button>rink refs</button>
+      <button type="button" id="pick" data-pick class="pick" title="csv · tsv · xlsx · md · txt · corpus · xml · edi — read in this window">your roster file…</button><input type="file" id="file" hidden accept=".csv,.tsv,.xlsx,.md,.txt,.corpus,.xml,.edi,.x12">
+      <span class="sep">store</span>
+      <button>store</button><button>store verify</button>
+    </div>
+  </section>
+
+  <section class="frame" id="game" aria-label="game">
+    <span class="tag" id="gametag">no game</span>
+    <div id="score" aria-live="polite"></div>
+    <canvas id="rink" aria-label="rink with shot locations; click to add coordinates to the command"></canvas>
+    <div class="legend"><span>○ shot · ● goal · size ∝ xG · <span class="h">home →</span> · <span class="a">← away</span> · heat: KDE box⁴ ≈ 15 ft</span><span id="pickhint">click the rink: /x,y</span></div>
+    <div class="tabs" role="tablist">
+      <button role="tab" id="t-frame" aria-selected="true">frame</button><button role="tab" id="t-box" aria-selected="false">box</button><button role="tab" id="t-events" aria-selected="false">events</button><button role="tab" id="t-league" aria-selected="false">league</button>
+    </div>
+    <div id="pane" role="tabpanel"></div>
+  </section>
+</main>
+
+<footer>
+  <div><b>What runs here.</b> The engine of RINK-VT, unchanged: the command language, 64-byte frames, the event-sourced game actor, xG, RAPM, GSAx and GAR, the roster importer and the HK001 port. It runs in this window, which is the renderer; nothing here is Node.js.</div>
+  <div><b>Where the league is.</b> The Photon host, a Python process on this computer, keeps the registry and a hash-chained ledger per game. Each line is on its disk before its result appears; <code>store verify</code> re-reads all of it. Your roster file is read in this window.</div>
+  <div><b>Data.</b> The four demonstration clubs and anything simulated are fictional. HK001 is a deterministic synthetic research laboratory. It gives no forecasts, odds, or roster, medical, scouting or officiating advice.</div>
+</footer>
+
+<script src="/workbench.js"></script>

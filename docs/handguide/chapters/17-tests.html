@@ -1,0 +1,50 @@
+<h1 key="tests">Tests</h1>
+<p class="lede">The claims of this guide about the LK/Vexa edition rest on its test suite: {{n_tests}} tests in {{n_test_modules}} modules, run by the verifier and by the qualification. The engine's own, larger suite belongs to the reference edition.</p>
+
+<h2>The qualification of this release</h2>
+<table class="t kvt" key="tbl-qual-summary" caption="The qualification record of this release">
+<colgroup><col style="width:24%"><col style="width:76%"></colgroup>
+<tbody>
+<tr><td>Result</td><td>{{q_result}}</td></tr>
+<tr><td>Checks</td><td>{{q_checks}} run · {{q_passed}} passed · {{q_skipped}} skipped</td></tr>
+<tr><td>Platform</td><td>{{q_platform}}</td></tr>
+<tr><td>Run at</td><td>{{q_run_at}}</td></tr>
+<tr><td>Scope</td><td>{{q_scope}}</td></tr>
+</tbody>
+</table>
+<p>The record is <code>contracts/mssl/90_qualification.mssl</code>, written by <code>tools/contracts.py qualify</code> from the run itself ({{ref:qualification}}). A skipped test is one whose optional tool was absent on the qualifying computer; the record's scope says what that leaves uncovered.</p>
+
+<h2>The edition's tests</h2>
+<p>The inventory below is generated from the test suite when this guide is built: the module, the test, and the test's own statement of what it shows.</p>
+{{tests_table}}
+
+<h2>What the tests establish</h2>
+<dl class="def">
+<dt>Leases</dt><dd>Canonical keys in every spelling; pools refused when invalid; the same addresses and the same probing as the reference edition; leases static across restarts and unique over thousands of addresses; a full pool refused; one table shared by two writers; a cut-off line dropped; an edited line and a changed pool refused.</dd>
+<dt>Store</dt><dd>Commits that survive reopening; entries written by the engine itself accepted; stale seals, wrong starts, removed games, bad seals, half pairs, bad base64 and unknown games refused with nothing written; invalid registries refused; cut-off lines dropped on opening and reported by verification without repair; edited entries, removed lines and an edited registry refused; an interrupted registry commit completed, and a commit cut off before its rename discarded.</dd>
+<dt>Host API</dt><dd>The page carries its token and every security header; the Host guard refuses every other name; the token guard refuses missing, wrong and altered tokens; mutations refused for the wrong media type, a foreign origin, a missing token, duplicate keys, a non-object and an oversized body; only the bundle and stylesheet served as files; a full commit, league, ledgers and verification round trip, with stale seals refused.</dd>
+<dt>Release</dt><dd>A sealed release passes; a changed, missing or unlisted code file is refused and the host exits 4; a documentation change does not stop a start but fails a full verification; the bundle is current; the page obeys its own policy.</dd>
+<dt>Contracts</dt><dd>Every static record valid and equal to what the generator writes, and accepted by the corpus validator when it is present; the validator refuses damaged documents; the JA sources well formed; their constants equal to the implementation's; the JA checker refuses what the suite refuses.</dd>
+<dt>Browser</dt><dd>The real host in its own process and the workbench in Chromium: a game created and scored, each line recorded, the audit trail naming this computer's lease, the league intact across a reload and across a restart of the host with the same lease, <code>store verify</code> OK; a simulation recorded; two windows racing, the later refused and reloaded; no page or console error.</dd>
+</dl>
+
+<h2 key="reference-tests">The reference edition's tests</h2>
+<p>The engine's own behaviour — the lexer, the frames, the actor's rules, the corrections, replay, the models against SciPy, the heat-map kernels, HK001 against Go, roster import, roles and tenancy, the SSD-RAM ledger's crash cases — is tested in the reference edition {{reference}}. For this issue of the guide its suite was run on its release tree:</p>
+<table class="t" key="tbl-reference-tests" caption="The reference edition's test results for this issue">
+<colgroup><col style="width:44%"><col style="width:56%"></colgroup>
+<thead><tr><th>Suite</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td><code>npm test</code> (all suites)</td><td>212 tests: 206 passed, 6 skipped (DF fabric tests without their containers), 0 failed — on the release tree and again on a clean copy unpacked from the release archive</td></tr>
+<tr><td><code>tests/rink/*.test.js</code></td><td>78 tests, all passed</td></tr>
+<tr><td><code>npm run test:ui</code> (Chromium)</td><td>4 tests, all passed: the terminal, the dashboard, roster import in the dashboard, the offline bench</td></tr>
+<tr><td><code>tools/docker-files-check.js</code></td><td>PASS: the gateway starts from exactly the files the Dockerfile copies, in wide use, with a session and a statistics command</td></tr>
+<tr><td><code>tools/verify.js</code> · <code>tools/mkmanifest.js --check</code></td><td>PASS, 394 files · CURRENT</td></tr>
+</tbody>
+</table>
+
+<h2>Running the tests</h2>
+<pre>python -I -B -m unittest discover -s tests -p "test_*.py"                 the whole suite
+python -I -B -m unittest discover -s tests -p "test_store.py" -v         one module, naming each test
+RINKVT_MSSL_VERIFIER=…/VERIFY_MSSL.py python -I -B -m unittest discover -s tests -p "test_*.py"
+RINKVT_SKIP_BROWSER=1 python -I -B -m unittest discover -s tests -p "test_*.py"   without the browser tests</pre>
+<p>The browser tests copy the release to a scratch folder, seal the copy and start its host in a process of its own, so they test the host exactly as a start runs it and leave the working tree untouched.</p>

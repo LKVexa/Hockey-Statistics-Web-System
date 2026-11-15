@@ -1,0 +1,34 @@
+ja source 0.3
+module rinkvt.contract.loopback
+use Core
+policy no_network
+
+record Pool { base: Text, prefix_length: Count, capacity: Count }
+record Lease { address: Text, key: Text, granted_at: Text, seal: Text }
+record LeaseTable { file: Text, pool: Pool, ipv6_prefix: Count, leases: List<Lease> }
+enum LeaseError { NotAnAddress, Full, Damaged, PoolChanged, Locked }
+function canonical_key(client: Text) -> Text effects { pure } {
+    let address: IpAddress = IpAddress.parse(client).without_port().without_zone().unmapped()
+    return address.rfc5952()
+}
+function first_slot(key: Text, pool: Pool) -> Count effects { pure } {
+    let digest: Text = Sha256.hex(Text.join(["RINK-VT loopback 1", key], Text.nul))
+    return Hex.to_count(digest.prefix(16)) % pool.capacity
+}
+function address_at(pool: Pool, slot: Count) -> Text effects { pure } {
+    return Ipv4.text(Ipv4.parse(pool.base) + (slot / 254) * 256 + slot % 254 + 1)
+}
+function first_address(key: Text, pool: Pool) -> Text effects { pure } {
+    return address_at(pool, first_slot(key, pool))
+}
+function lease(table: LeaseTable, client: Text) -> Result<Lease, LeaseError> effects { file_read, file_write, file_lock } {
+    let key: Text = canonical_key(client)
+    match table.leases.find(|l: Lease| l.key == key) {
+        Some(l) => Ok(l),
+        None => table.with_lock(|t: LeaseTable| t.reread().allocate_by_probing(key, first_slot(key, t.pool)).append_synced_and_sealed()),
+    }
+}
+let default_pool: Pool = Pool { base: "127.16.0.0", prefix_length: 12, capacity: 1040384 }
+assert first_address(canonical_key("203.0.113.5"), default_pool) == "127.20.66.113"
+assert canonical_key("[2001:DB8:0:0::1]:443") == "2001:db8::1"
+emit json default_pool

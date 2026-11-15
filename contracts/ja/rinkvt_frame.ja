@@ -1,0 +1,29 @@
+ja source 0.3
+module rinkvt.contract.frame
+use Core
+policy no_network
+
+const frame_bytes: Count = 64
+const meta_magic: Count = 827608387
+record Frame { uuid: Bytes, onset_ns: Count, commit_ns: Count, game_hash: Bytes, lamport: Count, team: Text, player: Text, stat: Text, modifier: Bytes, location: Bytes, crc: Count }
+record MetaLine { magic: Count, recorded_by: Bytes, loopback: Bytes, crc: Count }
+record LedgerPair { frame: Bytes, meta: Bytes }
+enum PairCheck { Accepted, WrongLength, FrameCrc, OtherGame, MetaCrc }
+function frame_crc_ok(frame: Bytes) -> Bool effects { pure } {
+    return Crc32c.of(frame.slice(0, 60)) == Bytes.big_endian(frame.slice(60, 64))
+}
+function meta_crc_ok(meta: Bytes) -> Bool effects { pure } {
+    return Bytes.little_endian(meta.slice(0, 4)) == meta_magic && Crc32c.of(meta.slice(0, 60)) == Bytes.little_endian(meta.slice(60, 64))
+}
+function check_pair(pair: LedgerPair, game_uuid: Bytes) -> PairCheck effects { pure } {
+    match pair {
+        p if p.frame.length != frame_bytes || p.meta.length != frame_bytes => PairCheck.WrongLength,
+        p if frame_crc_ok(p.frame) == false => PairCheck.FrameCrc,
+        p if p.frame.slice(32, 36) != game_uuid.slice(0, 4) => PairCheck.OtherGame,
+        p if meta_crc_ok(p.meta) == false => PairCheck.MetaCrc,
+        _ => PairCheck.Accepted,
+    }
+}
+let check_value: Count = Crc32c.of(Bytes.text("123456789"))
+assert Crc32c.of(Bytes.text("123456789")) == 3808858755
+emit json check_value

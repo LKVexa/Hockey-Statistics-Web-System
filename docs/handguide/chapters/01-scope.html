@@ -1,0 +1,43 @@
+<h1 key="scope">Scope and audience</h1>
+<p class="lede">This handguide is the operating, technical and assurance manual of the RINK-VT Workbench. It states what the software does, how to run it, how it keeps a league, how a release is verified, and where its limits lie.</p>
+
+<h2 key="purpose">Purpose</h2>
+<p>RINK-VT is a hockey statistics system built around a scorer's command language. A scorer types one fact per line — <code>FOCO SMIT G/2P</code>, a goal by player SMIT of team FOCO from zone 2 with a snap shot — and the line becomes one or more 64-byte frames. An event-sourced game actor applies the frames; box scores, expected goals, stints, regularised adjusted plus-minus (RAPM), goals saved above expected (GSAx), goals and wins above replacement (GAR, WAR), NHL equivalency (NHLe) and heat maps are computed from the frames it accepted, and every computation of the HK001 research laboratory is a command of its own.</p>
+<p>This document gives the operator, the league administrator, the auditor and the maintainer one authoritative account of the system: its operation (Part II), its formats, interfaces and rules (Part III), the evidence that a release does what this document says (Part IV), and the multi-user gateway it comes from (Part V).</p>
+
+<h2>Scope</h2>
+<p>The handguide applies to two editions of RINK-VT, which share one engine and one language ({{ref:editions}}):</p>
+<ul>
+<li><b>The LK/Vexa edition (Photon-hosted), {{version}}</b> — the subject of Parts I to IV. One operator's workbench on one computer: the engine runs in a browser window, and a Python program, the Photon host, keeps the league on disk. No Node.js is involved.</li>
+<li><b>The reference edition, HERMIT + RINK-VT {{reference}}</b> — the subject of Part V. A multi-user gateway on Node.js with terminals, a browser dashboard, principals and capabilities, live feeds and container deployment.</li>
+</ul>
+<p>Where the two editions behave the same (the language, the frame, the game actor, the models, HK001, the loopback lease algorithm), Parts II and III describe the behaviour once; Part V states only what differs.</p>
+
+<h2>Out of scope</h2>
+<ul>
+<li>The meaning of hockey statistics in general, and the choice of model parameters for a real league. The models are documented with their declared assumptions ({{ref:models}}); calibrating them is a league's own work.</li>
+<li>Forecasting, betting, roster, medical, scouting, officiating or employment decisions. Nothing in RINK-VT provides them, and HK001 states the same boundary of itself.</li>
+<li>The internals of the Go program HK001 that the engine ports, beyond what an operator needs to read its results ({{ref:hk001}}).</li>
+<li>The browser in which the workbench runs. Its security, accessibility and printing are those of the installed browser.</li>
+</ul>
+
+<h2 key="audience">Audience and roles</h2>
+<p>The guide is written for five roles. One person may hold several.</p>
+<table class="t" caption="Roles and the parts of this guide they use">
+<colgroup><col style="width:18%"><col style="width:52%"><col style="width:30%"></colgroup>
+<thead><tr><th>Role</th><th>Tasks</th><th>Chapters</th></tr></thead>
+<tbody>
+<tr><td>Scorer</td><td>Types the facts of a game as it is played; corrects them; reads the box score and the audit trail</td><td>3, 5, 6</td></tr>
+<tr><td>Operator</td><td>Installs and starts the workbench, keeps the data folder, stops the host, backs up and restores</td><td>3, 4, 5, 8, 9, 10</td></tr>
+<tr><td>League administrator</td><td>Registers leagues, teams and players from roster files; creates games; reads league-wide models</td><td>6, 7, 14</td></tr>
+<tr><td>Auditor or verifier</td><td>Checks that a release and a league are what they claim to be; reads the contracts and the qualification</td><td>8, 12, 15, 16, 17, 18, 19</td></tr>
+<tr><td>Maintainer</td><td>Changes the software, rebuilds the bundle, reseals the release, qualifies it and publishes it</td><td>11, 12, 13, 16, 18, 20</td></tr>
+</tbody>
+</table>
+
+<h2>How to use this guide</h2>
+<p>Part I orients: what the workbench is ({{ref:overview}}) and how to start it ({{ref:getting-started}}). Part II is the operating manual, in the order an operator meets the tasks. Part III is the reference an implementer or auditor checks a claim against. Part IV is the assurance case. Part V covers the reference edition. The appendices are lookup tables; Appendices A to F are generated from the release itself when the guide is built, so they cannot drift from the software they describe.</p>
+<p>Cross-references take the form §8.2 (a section), Table 12-1, Figure 8-1 or Appendix E; in the electronic copy each is a link. The glossary (Appendix G) defines the terms of the system, from <i>actor</i> to <i>torn line</i>.</p>
+
+<h2>The basis of the statements in this guide</h2>
+<p>Every statement of fact about the LK/Vexa edition describes the release {{version}} and is either verified by a named test (Chapter 17), generated from the release when the guide is built, or read from the source code the release seals. Statements about the reference edition describe {{reference}} and rest on its own test suite and documentation (Chapter 20). Where the guide states a limit or a behaviour that has not been demonstrated on a platform — for example the Windows launcher, written for Windows but not executed for this release — it says so ({{ref:limits}}).</p>

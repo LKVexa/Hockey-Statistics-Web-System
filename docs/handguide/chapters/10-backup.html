@@ -1,0 +1,51 @@
+<h1 key="backup">Backup, restore and migration</h1>
+<p class="lede">A league is a folder. Backing it up is copying the folder at a moment when no host writes to it; restoring it is putting the copy back and checking it.</p>
+
+<h2>What to back up</h2>
+<table class="t" key="tbl-backup-scope" caption="What a backup holds">
+<colgroup><col style="width:32%"><col style="width:16%"><col style="width:52%"></colgroup>
+<thead><tr><th>Item</th><th>Back up</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td><code>league/</code></td><td>Always</td><td>The registry and every game's ledger: the league itself</td></tr>
+<tr><td><code>events.jsonl</code></td><td>Always</td><td>The host's record of starts, commits and stops; part of the audit evidence</td></tr>
+<tr><td><code>loopback/leases</code></td><td>Always</td><td>This computer's address; without it a restored league is typed into from a new address ({{ref:lease-file}})</td></tr>
+<tr><td><code>browser_profile/</code></td><td>Never needed</td><td>The window's browser profile; a new one is made when absent</td></tr>
+<tr><td><code>.rinkvt.lock</code></td><td>Never</td><td>A lock belongs to a running host</td></tr>
+<tr><td>The release folder</td><td>Optional</td><td>Can be obtained again from its source and verified; keeping a copy of the exact release that wrote a league is good practice for an audit</td></tr>
+</tbody>
+</table>
+
+<h2 key="backup-procedure">Backup procedure</h2>
+<ol class="proc">
+<li><p>Stop the host: <b>stop host</b> in the window, or <kbd>Ctrl</kbd>+<kbd>C</kbd> in its console. Every recorded line is already on disk.</p></li>
+<li><p>Copy the data folder, without <code>browser_profile/</code> and <code>.rinkvt.lock</code>, to the backup location, preferably under a name that carries the date: <code>rinkvt-league-2026-11-15</code>.</p></li>
+<li><p>Verify the copy: <code>python photon/rinkvt.py --verify-only --data rinkvt-league-2026-11-15</code>. The league part of the report must say <code>"ok": true</code>.</p></li>
+<li><p>Keep the copy on a different disk from the original (DAT-01).</p></li>
+</ol>
+<div class="note"><p>A copy taken while a host runs is not a backup to rely on: files are copied at different instants, and a copy may hold a cut-off last line or a pending registry seal. Stop the host first.</p></div>
+
+<h2 key="restore">Restore procedure</h2>
+<ol class="proc">
+<li><p>Stop any host that uses the data folder.</p></li>
+<li><p>Move the current data folder aside under another name. Do not delete it until the restored league has been checked.</p></li>
+<li><p>Copy the backup into the data folder's place.</p></li>
+<li><p>Verify it with <code>--verify-only</code>.</p></li>
+<li><p>Start the host. The window shows the league as it was when the backup was taken.</p></li>
+</ol>
+
+<h2>Checking a league without a host</h2>
+<p><code>--verify-only</code> reads a data folder and writes nothing to it: no lock is taken over, no cut-off line is dropped, no pending seal is completed. It is therefore safe on a backup, on a copy received from another operator, and on removable media. When a running host holds the folder, it checks the release only and says that the league is to be verified from that host's window with <code>store verify</code>.</p>
+
+<h2 key="migration">Moving to another computer</h2>
+<ol class="proc">
+<li><p>Back up the data folder on the old computer ({{ref:backup-procedure}}).</p></li>
+<li><p>Install and verify the same release, or a later one, on the new computer.</p></li>
+<li><p>Restore the backup into the new computer's data folder and start the host.</p></li>
+</ol>
+<p>The new computer has its own primary IP address and therefore its own lease: lines typed on it record its address, and the <i>from</i> column of earlier lines keeps the old computer's. To keep the old address — the same computer under a new disk, for instance — restore the lease table with the league and start with <code>--address</code> naming the old IP address.</p>
+
+<h2>Updating the release</h2>
+<p>A later release of the LK/Vexa edition opens a league written by an earlier one when it keeps the registry schema <code>rinkvt.registry.v1</code> and the ledger format <code>rinkvt.vec1-ledger.v1</code>; its notes say so when it does not. To update: stop the host, back up the data folder, replace the release folder with the new release (keeping the data folder), verify the new release, and start it.</p>
+
+<h2>Between the editions</h2>
+<p>The editions share the registry schema and the frame and meta-line formats, but not the ledger file format: the reference edition keeps SSD-RAM files of 64-byte records ({{ref:reference-ledger}}), this edition hash-chained JSON lines. A data folder of one is therefore not opened by the other. The lines of a game can be carried across by replaying its entries, and the registry text is the same document; no tool for this is supplied in this release.</p>

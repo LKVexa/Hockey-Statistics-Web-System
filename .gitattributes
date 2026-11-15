@@ -1,0 +1,3 @@
+# Every byte is sealed (RELEASE_MANIFEST.json, and the MSSL records seal their own text): Git must not convert
+# line endings on checkout or commit. The .cmd launchers are stored with CRLF, everything else with LF.
+* -text

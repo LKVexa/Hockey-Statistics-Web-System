@@ -1,0 +1,120 @@
+<h1 key="language">The scorer's language</h1>
+<p class="lede">The language is a tri-token line language: a team, a player and a stat, with modifiers. It is the same in both editions and in every client of the reference edition, because one lexer and one compiler serve them all.</p>
+
+<h2 key="line-forms">Line forms</h2>
+<table class="t" key="tbl-line-forms" caption="The forms of a line in RINK mode">
+<colgroup><col style="width:38%"><col style="width:62%"></colgroup>
+<thead><tr><th>Line</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>TEAM PLAYER STAT[/mod…]</code></td><td>One event. PLAYER is the player's four-letter code, <code>J91</code>, <code>0091</code> or <code>91</code> (the jersey)</td></tr>
+<tr><td><code>LINE TEAM P1 … P6</code></td><td>The skaters on the ice for TEAM; a goalie's code sets the crease. A team with a LINE is tracked by shifts from then on ({{ref:lineups}})</td></tr>
+<tr><td><code>T mm:ss [P1·P2·P3·OT·SO]</code> · <code>GO</code> · <code>STOP</code> · <code>NEXT</code> · <code>END</code></td><td>The scoreboard clock; <code>CLOCK GO</code> and the like also work. Playoff overtime periods are <code>OT</code>, <code>OT2</code> … <code>OT9</code> ({{ref:clock}})</td></tr>
+<tr><td><code>UNDO</code> · <code>DEL n</code> · <code>FIX n …</code></td><td>Corrections, appended to the ledger and never overwritten ({{ref:corrections}})</td></tr>
+<tr><td><code>Q TARGET [args] [--flags]</code></td><td>Queries ({{ref:queries}})</td></tr>
+<tr><td><code>GAME key</code> · <code>LOCALE fr-CA</code> · <code>HELP</code> · <code>EXIT</code></td><td>Select another game · use the French aliases · list the language · leave RINK mode</td></tr>
+</tbody>
+</table>
+<p>The four-letter words of the language — <code>LINE UNDO STOP NEXT GAME HELP EXIT QUIT</code> — can never be team codes, so a line's first word always says what kind of line it is.</p>
+
+<h2>Events</h2>
+<p>An event is the most common line. The stat token says what happened; the team and player say who did it. There are {{n_tokens}} stat tokens: the specification's <code>G S M B A A1 A2 ZE ZX H TK GV FOW FOL P2 P4 P5 P10 P20 PS IN OUT</code>, and two declared extensions that HK001's inputs need, <code>FC</code> (forecheck attempt) and <code>OMR</code> (odd-man rush). Appendix B lists every token with its meaning and the HK001 inputs it feeds.</p>
+<pre>FOCO GOUL S/1W          a shot on goal by GOUL from zone 1, wrist shot
+FOCO SMIT G/2P          a goal by SMIT from zone 2, snap shot
+FOCO HALA A             an assist: bound to FOCO's open goal (primary, then secondary)
+KELW BARK B             a blocked shot, logged for the blocking player
+FOCO SMIT FOW/N         a faceoff won in the neutral zone (KELW's centre loses it automatically)
+KELW WITC ZE/C          a controlled zone entry
+FOCO 19 S/78,-4         a shot by jersey 19 at x = 78 ft, y = −4 ft
+KELW BARK P2/TRP        a two-minute minor for tripping</pre>
+
+<h2 key="modifiers">Modifiers</h2>
+<p>Modifiers follow the stat after a slash. The compiler writes them in a canonical order (<code>1W</code>, never <code>W1</code>) and the actor checks them against the same grammar, so a frame carries one spelling of each event.</p>
+<table class="t" key="tbl-modifiers" caption="Modifiers and the stats that take them">
+<colgroup><col style="width:25%"><col style="width:23%"><col style="width:52%"></colgroup>
+<thead><tr><th>Modifier</th><th>Taken by</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>/1</code> … <code>/9</code></td><td>shot tokens</td><td>Shot zone: the specification's zone centroids, used as the location when no coordinates are given</td></tr>
+<tr><td><code>/W /S /P /B /T</code></td><td>shot tokens</td><td>Shot type: wrist, slap, snap, backhand, tip</td></tr>
+<tr><td><code>/R /U /X</code></td><td>shot tokens</td><td>Flags: rebound, rush, royal road (rebounds and rushes are also inferred, {{ref:actor}})</td></tr>
+<tr><td><code>/x,y</code></td><td>events with a location</td><td>Coordinates in feet, x along the rink and y across it; both or neither; on the 200 × 85 ft ice</td></tr>
+<tr><td><code>/O /D /N</code></td><td><code>FOW</code> <code>FOL</code></td><td>Faceoff zone: offensive, defensive, neutral</td></tr>
+<tr><td><code>/C /D /F</code></td><td><code>ZE</code> <code>ZX</code></td><td>Controlled; dump-in (entry) or clear (exit); failed</td></tr>
+<tr><td><code>/TRP</code>, <code>/HOK</code> …</td><td>penalty tokens</td><td>The infraction (Appendix B lists the codes)</td></tr>
+</tbody>
+</table>
+
+<h2 key="clock">The clock</h2>
+<p><code>T mm:ss [period]</code> sets the scoreboard clock: <code>T 20:00 P1</code> at the start of a game, <code>T 12:31</code> to correct it. <code>GO</code> starts it, <code>STOP</code> stops it, <code>NEXT</code> moves to the next period and <code>END</code> ends the game. A clock time is at most 20:00 and a period at most 12. The clock history is piecewise, and every event takes the clock at its first keystroke, not at <kbd>Enter</kbd>: a scorer who starts typing a goal at 14:02 and finishes at 13:58 records the goal at 14:02.</p>
+<p>A regular-season game has periods 1 to 5: three of regulation, a sudden-death 3-on-3 overtime of 5:00 and a shootout (best of three, then sudden death). In other stages, playoff overtime periods of 20:00 follow until a goal, up to period 12.</p>
+
+<h2 key="lineups">Lineups</h2>
+<p><code>LINE TEAM P1 … P6</code> names a team's players on the ice; a goalie's code among them sets the crease. A team with a line is tracked by shifts: every change of a line rotates the stint ({{ref:stints}}). <code>IN</code> and <code>OUT</code> events record single changes. A line of more than three players is carried by two system frames (<code>!LIN</code> and <code>!LIA</code>), applied together.</p>
+
+<h2 key="corrections">Corrections</h2>
+<p>A correction never overwrites anything: it is a frame of its own, appended to the ledger, and the game's state is folded again from the start. The audit trail therefore shows the event and its correction.</p>
+<table class="t" key="tbl-corrections" caption="Corrections">
+<colgroup><col style="width:36%"><col style="width:64%"></colgroup>
+<thead><tr><th>Line</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>UNDO</code></td><td>Withdraws the last event this operator entered in this game ("nothing of yours to undo" when there is none)</td></tr>
+<tr><td><code>DEL n</code></td><td>Withdraws event number <i>n</i> of this game</td></tr>
+<tr><td><code>FIX n TEAM PLAYER STAT[/mods]</code></td><td>Replaces event <i>n</i> with the event given</td></tr>
+<tr><td><code>FIX n A1=19 A2=44 XY=78,-4</code></td><td>Patches fields of event <i>n</i>: <code>A1=</code> and <code>A2=</code> the assists of a goal, <code>P=</code> player, <code>T=</code> team, <code>S=</code> stat, <code>M=</code> modifier, <code>X=</code> <code>Y=</code> or <code>XY=</code> coordinates; <code>-</code> clears (<code>A2=-</code>, <code>XY=-</code>, <code>M=-</code>)</td></tr>
+</tbody>
+</table>
+<p>A correction is checked as a new line is: coordinates on the ice, at most four letters or digits in <code>M=</code>, and the patched event still valid. A <code>FIX</code> that would make its event invalid — an unknown player, a modifier the stat does not take, a team that is not playing, an assist by the scorer, an assist on an event that is not a goal — is refused and nothing changes. <code>FIX</code> cannot turn an event into an assist or a shift; <code>DEL</code> it and enter it again.</p>
+
+<h2 key="queries">Queries</h2>
+<p><code>Q TARGET</code> answers from the game state. In RINK mode it reads the selected game unless told otherwise; outside it, <code>q box</code> and the like take the same targets and flags. Each target accepts only its own flags and refuses any other, so a mistyped filter never returns an unfiltered answer (Appendix C).</p>
+<table class="t" key="tbl-queries" caption="Query targets">
+<colgroup><col style="width:28%"><col style="width:72%"></colgroup>
+<thead><tr><th>Target</th><th>Answer</th></tr></thead>
+<tbody>
+<tr><td><code>SCORE</code> · <code>BOX</code></td><td>The score; the box score of a game or of the season for a team</td></tr>
+<tr><td><code>EVENTS [n]</code> · <code>XG</code> · <code>STINTS</code> · <code>PEN</code></td><td>The last events; expected goals by team and player; the stints; the penalties</td></tr>
+<tr><td><code>PLAYER TEAM CODE</code> · <code>ROSTER TEAM</code></td><td>One player's line over a game or the season; a team's roster</td></tr>
+<tr><td><code>STANDINGS</code> · <code>LEADERS</code></td><td>League standings; scoring leaders</td></tr>
+<tr><td><code>RAPM</code> · <code>GSAX</code> · <code>GAR</code> · <code>WAR</code> · <code>NHLE</code></td><td>The league-wide models ({{ref:models}})</td></tr>
+<tr><td><code>HEAT</code></td><td>Shot heat maps of a game or the season</td></tr>
+<tr><td><code>LEDGER</code> · <code>AUDIT [n]</code></td><td>The game's ledger summary; the audit trail: every line, the operator, the source, the loopback address it came from, and its outcome</td></tr>
+<tr><td><code>CODES</code> · <code>HK001 TEAM</code></td><td>The codes in use; the 109 HK001 inputs of a team with their provenance ({{ref:hk001}})</td></tr>
+</tbody>
+</table>
+<p>The common flags are <code>--game=G1</code> or <code>--season</code>, <code>--team=FOCO</code>, <code>--str=</code> (<code>ALL</code>, <code>EV</code>, <code>PP</code>, <code>ST</code> or a skater count such as <code>5v5</code>), <code>--min=</code> minutes and <code>--n=</code> rows. Counts are whole numbers, clamped to their range.</p>
+
+<h2 key="rink-admin">League administration</h2>
+<p>The <code>rink</code> command administers the league. In the LK/Vexa edition the operator holds the administrative capability, so every subcommand is available.</p>
+<table class="t" key="tbl-rink-admin" caption="Subcommands of rink">
+<colgroup><col style="width:42%"><col style="width:58%"></colgroup>
+<thead><tr><th>Subcommand</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>rink [GAME]</code> · <code>rink games</code></td><td>Enter RINK mode on GAME, or on the current game; list the games. On opening, the window enters RINK mode on the newest game still in progress</td></tr>
+<tr><td><code>rink new HOME AWAY [date] [stage]</code></td><td>Create a game; it becomes <code>G1</code>, <code>G2</code> … in order</td></tr>
+<tr><td><code>rink leagues</code> · <code>rink teams [LEAGUE]</code> · <code>rink roster TEAM</code> · <code>rink refs [LEAGUE|TEAM]</code></td><td>List leagues, teams, a roster, and every four-letter reference ({{ref:refs}})</td></tr>
+<tr><td><code>rink import PATH [--apply]</code> · <code>rink import formats</code> · <code>rink import examples</code></td><td>Preview or register a roster file; the columns and layouts read; the example files ({{ref:rosters}})</td></tr>
+<tr><td><code>rink addleague</code> · <code>rink addteam</code> · <code>rink addplayer</code></td><td>Register a league, a team or a player by hand</td></tr>
+<tr><td><code>rink sim [n] [seed]</code></td><td>Type <i>n</i> synthetic games through the production command path (fictional data)</td></tr>
+<tr><td><code>rink ledger [verify]</code></td><td>The selected game's ledger, and a verification that replaying it gives the same state</td></tr>
+<tr><td><code>rink note TEAM text</code> · <code>rink note del ID</code> · <code>rink notes [TEAM]</code></td><td>Notes on a team</td></tr>
+<tr><td><code>rink status</code> · <code>rink help</code></td><td>The service's state; the usage of every subcommand</td></tr>
+</tbody>
+</table>
+
+<h2 key="hk001-commands">HK001 commands</h2>
+<p>HK001 is a deterministic synthetic research laboratory, ported from its Go program so that it gives the same receipts ({{ref:hk001}}). Its {{n_codes}} computation codes and {{n_inputs}} input codes are each a command (Appendices D and E): <code>OFF-001</code> prints the first offence equation with its formula, inputs and value; <code>HKI-002</code> shows an input, <code>HKI-002 300</code> sets it in the working case and <code>HKI-002 -</code> restores it. The case a code reads is chosen with <code>--baseline</code>, <code>--team FOCO [--season | --game=G1] [--player=CODE]</code> or <code>--file PATH</code>, with <code>FIELD=VALUE</code> overrides; without <code>--keep</code> the choice applies to that command only.</p>
+<table class="t" key="tbl-hk001" caption="The HK001 commands">
+<colgroup><col style="width:22%"><col style="width:78%"></colgroup>
+<thead><tr><th>Command</th><th>Effect</th></tr></thead>
+<tbody>
+<tr><td><code>hk001</code></td><td>Summary, about (the research boundary), demo, eq, master, x8s, sp8 (with <code>--all</code> for the intermediates), codes, inputs, graph, receipt, verify, formats, examples</td></tr>
+<tr><td><code>case</code></td><td>The working case: baseline, team (filled from the ledger), load (twelve inert input formats), set, unset, mode, cal, save, json, prov</td></tr>
+<tr><td><code>corpus</code></td><td>The 84 plates of the Mathematical Corpus, search, glossary and guide pages</td></tr>
+<tr><td><code>tokens [TOKEN]</code></td><td>Each stat token and the HK001 input codes it feeds</td></tr>
+</tbody>
+</table>
+
+<h2>Locale</h2>
+<p><code>LOCALE fr-CA</code> enables the specification's French aliases, which compile to the canonical token before a frame is made: <code>B</code> (but) is <code>G</code>, <code>T</code> (tir) is <code>S</code>, <code>MG</code> and <code>MP</code> are <code>FOW</code> and <code>FOL</code>, and so on (Appendix B). The frame, and therefore the ledger, holds the canonical token only.</p>
+
+<h2 key="atomic">One line, all or nothing</h2>
+<p>All frames of one line are applied atomically: if any is rejected, those of the line already applied are rolled back, and the line answers with the reason. Frames are idempotent by their UUIDv7: a frame sent twice answers <code>DUPLICATE</code> with the original outcome and event number. A frame is client bytes, so decoding is strict: every text field must be canonical (A–Z and 0–9, NUL-padded), coordinates both present or both absent and on the ice, and a frame that fails is rejected as malformed without echoing what it held ({{ref:strict-decoding}}).</p>

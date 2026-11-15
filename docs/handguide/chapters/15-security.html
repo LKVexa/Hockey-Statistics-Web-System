@@ -1,0 +1,51 @@
+<h1 key="security">Security</h1>
+<p class="lede">The workbench is one operator's program on one computer. It protects two things: the league on disk, against loss, silent damage and other programs; and the computer, against the workbench being used from elsewhere.</p>
+
+<h2>Assets and boundary</h2>
+<table class="t" key="tbl-assets" caption="Assets and what threatens them">
+<colgroup><col style="width:26%"><col style="width:74%"></colgroup>
+<thead><tr><th>Asset</th><th>What must not happen</th></tr></thead>
+<tbody>
+<tr><td>The league on disk</td><td>Loss of an acknowledged line; a change no command made; damage that goes unnoticed; two writers at once</td></tr>
+<tr><td>The program</td><td>Running code the release did not seal</td></tr>
+<tr><td>The workbench's API</td><td>Use by a web page, another computer or another origin</td></tr>
+<tr><td>The operator's browsing</td><td>The workbench exposing cookies, sessions or extensions of the ordinary browser, or they exposing the workbench</td></tr>
+</tbody>
+</table>
+<p>The boundary of the workbench is the host process, its renderer window and its data folder. Other programs run by the same user on the same computer are inside the computer's boundary but outside the workbench's: they can read the data folder and the page, and the workbench does not defend against them ({{ref:residual}}).</p>
+
+<h2 key="threats">Threats and controls</h2>
+<table class="t" key="tbl-threats" caption="Threats and the controls that answer them">
+<colgroup><col style="width:28%"><col style="width:72%"></colgroup>
+<thead><tr><th>Threat</th><th>Control</th></tr></thead>
+<tbody>
+<tr><td>A web page in an ordinary browser calls the host (cross-site request, DNS rebinding)</td><td>The host answers only a Host header that names its lease address and port (421); every API route but health needs the launch's token, which only the host's own page holds (403); a change must be <code>application/json</code> (415) and, with an Origin, the host's own (403). A page of another origin can neither read the token nor send a JSON request the browser would let through without it</td></tr>
+<tr><td>Another computer on the network</td><td>The listener is bound to a loopback address only; nothing listens on a network interface</td></tr>
+<tr><td>A changed or planted program file</td><td>The code of the release is checked against the manifest before anything opens (exit 4); the launchers run Python in isolated mode, so no user-site or environment path can insert a module; no bytecode is written beside the sealed sources</td></tr>
+<tr><td>Script injection into the page</td><td>A Content Security Policy of <code>default-src 'self'</code> with no inline script, style or event handler and no <code>eval</code>; <code>frame-ancestors 'none'</code> and <code>X-Frame-Options: DENY</code>; <code>nosniff</code>; text from the league is rendered as text, never as markup</td></tr>
+<tr><td>Loss of an acknowledged line</td><td>Every line is written and synced before it is acknowledged; the window shows only what is acknowledged ({{ref:recording}})</td></tr>
+<tr><td>Silent damage or an edit of the league</td><td>Hash-chained ledgers whose every entry keeps its CRC-32C; a sealed registry; damage refuses to open and is named; <code>store verify</code> and <code>--verify-only</code> re-read everything</td></tr>
+<tr><td>Two writers</td><td>One host per data folder (exit 5); a stale window's commit is refused (409)</td></tr>
+<tr><td>Oversized or malformed input</td><td>Bodies of at most 32 MiB, no chunked bodies, strict JSON, every entry checked against the engine's seals; roster files are parsed by readers that take time proportional to their input and stop at their limits</td></tr>
+<tr><td>The ordinary browser's profile</td><td>The window runs on a profile of its own with extensions disabled; the ordinary profile is used only on request</td></tr>
+<tr><td>Disclosure through logs</td><td>Requests are not logged; events never record a request's content; the league stores loopback addresses, not IP addresses</td></tr>
+</tbody>
+</table>
+
+<h2 key="residual">Residual risks</h2>
+<ul>
+<li>A program running as the same user can read the data folder and the page's token. It is inside the boundary of the computer; protecting against it requires the operating system's own controls (separate accounts, disk encryption).</li>
+<li>The page holds the token for its lifetime; closing the window does not revoke it, stopping the host does (each launch draws a new token).</li>
+<li>The renderer is the installed browser, and its security is that browser's. An outdated browser is a risk to the workbench as to anything else.</li>
+<li>On macOS the host listens on 127.0.0.1, which every local program can reach; the Host and token guards still apply.</li>
+<li>The ledger chain proves that a ledger is internally consistent and unedited since it was written; it does not prove who wrote it. A party able to rewrite the whole data folder could write a different consistent league. Keeping backups elsewhere, and their verification reports, is the control.</li>
+</ul>
+
+<h2>Security obligations</h2>
+<div class="reqs">
+<div class="req"><span class="rid">SEC-01</span><span>The operator MUST NOT expose the host's port to a network by any forwarding, proxy or tunnel; the workbench is designed for its own computer only.</span></div>
+<div class="req"><span class="rid">SEC-02</span><span>The operator SHOULD keep the installed browser up to date.</span></div>
+<div class="req"><span class="rid">SEC-03</span><span>The operator SHOULD use the window the host opens, on its own profile, rather than <code>--allow-default-browser-fallback</code>.</span></div>
+<div class="req"><span class="rid">SEC-04</span><span>The operator MUST NOT run a release whose verification fails, and MUST obtain releases from their source and verify them ({{ref:verify}}).</span></div>
+<div class="req"><span class="rid">SEC-05</span><span>Where the league is sensitive, the data folder SHOULD be on an encrypted disk and in an account only the operator uses.</span></div>
+</div>

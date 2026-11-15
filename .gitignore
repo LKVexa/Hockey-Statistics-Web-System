@@ -1,0 +1,5 @@
+# the data folder of a running workbench: the league, its ledgers, the lease table, the browser profile
+runtime/
+__pycache__/
+*.pyc
+.pytest_cache/

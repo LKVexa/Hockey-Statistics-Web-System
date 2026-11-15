@@ -1,0 +1,26 @@
+ja source 0.3
+module rinkvt.contract.host
+use Core
+policy no_network
+policy loopback_only
+
+const token_header: Text = "X-VEC1-Token"
+const max_body_bytes: Count = 33554432
+record Route { method: Text, path: Text, needs_token: Bool, changes_state: Bool }
+record Request { method: Text, path: Text, host: Text, origin: Option<Text>, content_type: Text, token: Option<Text>, length: Count, chunked: Bool }
+record Listener { address: Text, port: Count, token: Text }
+enum Refusal { MisdirectedHost, Forbidden, UnsupportedMediaType, LengthRequired, PayloadTooLarge, NotFound }
+function admit(request: Request, listener: Listener, route: Route) -> Result<Request, Refusal> effects { pure } {
+    match request {
+        r if r.host != Text.concat([listener.address, ":", Text.of(listener.port)]) => Err(Refusal.MisdirectedHost),
+        r if route.changes_state && r.origin.is_some && r.origin != Some(Text.concat(["http://", r.host])) => Err(Refusal.Forbidden),
+        r if route.changes_state && r.content_type != "application/json" => Err(Refusal.UnsupportedMediaType),
+        r if route.needs_token && Constant.equal(r.token, Some(listener.token)) == false => Err(Refusal.Forbidden),
+        r if r.chunked => Err(Refusal.LengthRequired),
+        r if r.length > max_body_bytes => Err(Refusal.PayloadTooLarge),
+        r => Ok(r),
+    }
+}
+let routes: List<Route> = [Route { method: "GET", path: "/api/health", needs_token: false, changes_state: false }, Route { method: "GET", path: "/api/league", needs_token: true, changes_state: false }, Route { method: "POST", path: "/api/commit", needs_token: true, changes_state: true }]
+assert routes.length == 3
+emit json routes

@@ -1,0 +1,60 @@
+<section id="control">
+<h1 class="fmh">Document control</h1>
+<table class="ctl">
+<tr><th>Document identifier</th><td>{{doc_id}}</td></tr>
+<tr><th>Title</th><td>RINK-VT Workbench — Technical Handguide</td></tr>
+<tr><th>Revision</th><td>{{revision}} (initial issue)</td></tr>
+<tr><th>Issue date</th><td>{{issued}}</td></tr>
+<tr><th>Status</th><td>Released with the software it describes</td></tr>
+<tr><th>Classification</th><td>Unrestricted. Public. No part of this document is confidential.</td></tr>
+<tr><th>Applies to</th><td>RINK-VT Workbench, LK/Vexa edition (Photon-hosted) {{version}}, engine {{engine}}; and the reference edition, HERMIT + RINK-VT {{reference}}, in Part V</td></tr>
+<tr><th>Supersedes</th><td>None</td></tr>
+<tr><th>Copyright holder</th><td>RUSSELL PHILIP SMITHSON</td></tr>
+<tr><th>Licence</th><td>GNU General Public License, version 3 only (GPL-3.0-only), as the software it describes</td></tr>
+<tr><th>Source</th><td><code>docs/handguide/</code> of the LK/Vexa edition repository: the chapters, the stylesheet and <code>build.py</code>, which prints this document with Chromium and pypdf and no Node.js</td></tr>
+<tr><th>Generated content</th><td>Appendices A to F, the test inventory in Chapter 17 and the figures quoted from the qualification record are generated from the release itself each time the document is built: from the engine's own tables, the test suite and the contract files</td></tr>
+<tr><th>Qualification of the release</th><td>{{q_result}} · {{q_checks}} checks, {{q_passed}} passed, {{q_skipped}} skipped · {{q_platform}} · {{q_run_at}}</td></tr>
+</table>
+<h2 class="fm">Revision history</h2>
+<table class="ctl">
+<tr><th>Revision 1.0 · {{issued}}</th><td>Initial issue, with RINK-VT {{version}} (the LK/Vexa edition's first release) and the reference edition {{reference}}.</td></tr>
+</table>
+<h2 class="fm">Related documents</h2>
+<table class="ctl">
+<tr><th>In the LK/Vexa repository</th><td><code>README.md</code> · <code>docs/SECURITY.md</code> · <code>docs/CONTRACTS.md</code> · <code>NOTICE</code> · <code>COPYRIGHT</code> · <code>LICENSE</code></td></tr>
+<tr><th>In the reference edition</th><td><code>docs/RINK-VT.md</code> (the terminal) · <code>docs/OPERATIONS.md</code> · <code>docs/SECURITY.md</code> · <code>README.md</code></td></tr>
+<tr><th>LK/Vexa languages</th><td>MSSL Writers Corpus 1.0.0 (MSSL 0.1–0.3, observed subset) · JA21 JA Core Application Language Suite 1.0.0 (JA Core 0.3, provisional grammar) · VEC1 Photon WindowsSafe-r1 (Design Photon 0.6.0, Generic Photon 0.2.0)</td></tr>
+<tr><th>Standards cited</th><td>RFC 2119 and RFC 8174 (requirement keywords) · RFC 5952 (IPv6 text form) · RFC 8259 (JSON) · RFC 3720 Appendix B.4 (CRC-32C) · FIPS 180-4 (SHA-256) · RFC 9562 (UUID version 7)</td></tr>
+</table>
+</section>
+<section id="notices">
+<h1 class="fmh">Notices</h1>
+<div class="fmnote">
+<p><b>Copyright and licence.</b> RINK-VT, its two editions and this handguide are Copyright © 2026 RUSSELL PHILIP SMITHSON. They are free software: you can redistribute and modify them under the terms of the GNU General Public License, version 3 only, as published by the Free Software Foundation. The full text of the licence is in the file <code>LICENSE</code> of each edition; Appendix H summarises what it asks of a redistributor.</p>
+<p><b>No warranty.</b> The software and this document are distributed in the hope that they will be useful, but WITHOUT ANY WARRANTY, without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for details.</p>
+<p><b>Data.</b> The four demonstration clubs (FOCO, KELW, RIMO, SASK), their players and every simulated game are fictional. Any resemblance to a real club, player or game is coincidental.</p>
+<p><b>Research boundary.</b> HK001 is a deterministic synthetic research laboratory. It provides no validated forecasts and no betting odds, and no roster, medical, scouting, officiating or employment authority. Neither does any model in RINK-VT: RAPM, GSAx, GAR/WAR, NHLe and expected goals are descriptive statistics under the declared assumptions of {{ref:models}}, and the NHLe factors are declared placeholders, not fitted values.</p>
+<p><b>Third-party parts.</b> Parts of the HK001 port are derived from the Go standard library and keep their own notices (<code>engine/rink/hk001/NOTICE.md</code>). The Photon host follows the design of VEC1 Photon; no Photon source file is copied. The contracts are written in the formats of the MSSL Writers Corpus and the JA21 JA Core suite; neither corpus is bundled.</p>
+<p><b>Trademarks.</b> Microsoft, Windows and Microsoft Edge; Google Chrome and Chromium; Apple and macOS; Linux; Python; Docker and Node.js are trademarks of their respective owners. Their mention identifies a platform and implies no endorsement. A software licence implies no sponsorship, endorsement or certification by its publisher, by any upstream project, or by any league.</p>
+</div>
+</section>
+<section id="conventions">
+<h1 class="fmh">Conventions</h1>
+<div class="fmnote">
+<p><b>Requirement keywords.</b> The key words MUST, MUST NOT, REQUIRED, SHALL, SHALL NOT, SHOULD, SHOULD NOT, RECOMMENDED, NOT RECOMMENDED, MAY and OPTIONAL in this document are to be interpreted as described in BCP 14 (RFC 2119, RFC 8174) when, and only when, they appear in all capitals. Statements of what the software does are descriptions of the release, verified by the tests named in Chapter 17; statements with these key words are obligations on the operator, the administrator or a maintainer.</p>
+<p><b>Requirement identifiers.</b> Numbered obligations carry an identifier of the form <code>OPS-07</code> (operation), <code>DAT-03</code> (data custody), <code>SEC-02</code> (security) or <code>MNT-04</code> (maintenance), so that a local procedure or an audit can cite them.</p>
+</div>
+<table class="ctl">
+<tr><th>Convention</th><td><b>Meaning</b></td></tr>
+<tr><th><code>FOCO SMIT G/2P</code></th><td>Text that is typed, printed or stored exactly as shown: commands, lines of the scorer's language, file names, field names, constants</td></tr>
+<tr><th><code>TEAM</code>, <code>G#</code>, <code>FILE</code></th><td>A part of a command to be replaced by a value: a team code, a game key such as <code>G1</code>, a path</td></tr>
+<tr><th><code>[--season]</code> · <code>a | b</code> · <code>…</code></th><td>An optional part · one of the alternatives · the part may repeat</td></tr>
+<tr><th><kbd>Tab</kbd> <kbd>→</kbd> <kbd>Enter</kbd></th><td>Keys of the keyboard</td></tr>
+<tr><th>bytes 52–55</th><td>Byte offsets are zero-based and inclusive: bytes 52–55 are four bytes. <i>Big-endian</i> stores the most significant byte first, <i>little-endian</i> the least</td></tr>
+<tr><th><code>0x31544D43</code> · <code>127.20.66.113</code></th><td>Hexadecimal constants carry the prefix <code>0x</code>; IPv4 addresses are dotted decimal; IPv6 addresses are written as RFC 5952 prescribes</td></tr>
+<tr><th>SHA-256(a ‖ b)</th><td>The SHA-256 digest, in lower-case hexadecimal, of the UTF-8 bytes of <i>a</i> followed by those of <i>b</i>; LF is the byte 0x0A and NUL the byte 0x00</td></tr>
+<tr><th>Units</th><td>Times in nanoseconds (ns), milliseconds (ms) or seconds (s); rink coordinates in feet, x along the rink (−100 to 100), y across it (−42.5 to 42.5); sizes in bytes, KiB = 1 024 bytes, MiB = 1 048 576 bytes</td></tr>
+<tr><th>NOTE · CAUTION · WARNING</th><td>A note adds information. A caution marks an action that can lose work or make a league unusable until it is restored. A warning marks a risk to the integrity of recorded data or to the security of the computer</td></tr>
+<tr><th>Procedures</th><td>Numbered steps are carried out in order; a step that fails stops the procedure</td></tr>
+</table>
+</section>

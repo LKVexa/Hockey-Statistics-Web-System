@@ -1,0 +1,75 @@
+<h1 key="getting-started">Getting started</h1>
+<p class="lede">This chapter takes an operator from a downloaded release to a first scored game and a verified league. Each procedure is complete in itself; Part II explains every step in detail.</p>
+
+<h2 key="requirements">Requirements</h2>
+<table class="t" key="tbl-requirements" caption="Requirements of the LK/Vexa edition">
+<colgroup><col style="width:22%"><col style="width:40%"><col style="width:38%"></colgroup>
+<thead><tr><th>Item</th><th>Requirement</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>Operating system</td><td>Windows 10 or 11, macOS, or a Linux distribution</td><td>The qualification of this release names the platform its tests ran on ({{ref:limits}})</td></tr>
+<tr><td>Python</td><td>3.10 or newer, from python.org, the Microsoft Store or the system's packages</td><td>Standard library only: nothing is installed with <code>pip</code></td></tr>
+<tr><td>Browser</td><td>Microsoft Edge, Google Chrome or Chromium installed</td><td>Opened in app mode with a profile of its own; without one, the address can be opened by hand ({{ref:renderer}})</td></tr>
+<tr><td>Disk</td><td>A few megabytes for the program; about half a megabyte per scored game</td><td>The data folder may be anywhere the operator can write</td></tr>
+<tr><td>Memory</td><td>The window holds the whole league; a few hundred games are comfortable</td><td>{{ref:limits}}</td></tr>
+<tr><td>Network</td><td>None. The host listens on a loopback address and asks the network for nothing</td><td>Suitable for an air-gapped computer</td></tr>
+<tr><td>Rebuilding this guide (maintainers only)</td><td>Playwright for Python with a Chromium build, and pypdf</td><td>Not needed to run the workbench</td></tr>
+</tbody>
+</table>
+
+<h2>Obtaining the release</h2>
+<p>The LK/Vexa edition is published as a Git repository and may be distributed as an archive of it. Either way, the release is a folder holding <code>START_RINKVT.cmd</code>, <code>START_RINKVT.sh</code>, <code>photon/</code>, <code>ui/</code>, <code>engine/</code> and <code>RELEASE_MANIFEST.json</code> among others ({{ref:module-map}}).</p>
+<div class="caution"><p>Every byte of the release is sealed. A Git client that converts line endings on checkout (on Windows, <code>core.autocrlf=true</code>) would change the files and the host would refuse to start (exit code 4). The repository's <code>.gitattributes</code> disables conversion for every file; a copy made by other means MUST keep the files' bytes as they are.</p></div>
+<p>Place the folder where the operator can write: the default data folder, <code>runtime/</code>, is created beside the program on the first start. A path without unusual characters, such as <code>C:\RINK-VT\</code> or <code>~/RINK-VT/</code>, avoids surprises with long or synchronised paths.</p>
+
+<h2>First start on Windows</h2>
+<ol class="proc">
+<li><p>Install Python 3.10 or newer if <code>py -3 --version</code> in a Command Prompt does not print one. The launcher looks for <code>py -3</code>, then <code>python</code>, then <code>python3</code>.</p></li>
+<li><p>Double-click <code>START_RINKVT.cmd</code> in the release folder. A console window opens and prints the start report ({{ref:start-sequence}}).</p></li>
+<li><p>The workbench opens in an Edge or Chrome window of its own. The header strip shows <i>loopback 127.x.y.z · static for</i> this computer's address, and <i>league loaded</i>.</p></li>
+<li><p>Keep the console window open while working: it is the host. Closing it stops the host; what was recorded stays recorded.</p></li>
+</ol>
+
+<h2>First start on macOS and Linux</h2>
+<ol class="proc">
+<li><p>Check that <code>python3 --version</code> prints 3.10 or newer.</p></li>
+<li><p>In a terminal, run <code>./START_RINKVT.sh</code> from the release folder (or <code>python3 -I -B photon/rinkvt.py</code>).</p></li>
+<li><p>The workbench opens in Edge, Chrome or Chromium. On macOS the start report says that the system answers only on 127.0.0.1 and that the host listens there; the lease is still made and recorded ({{ref:platforms}}).</p></li>
+<li><p>Leave the terminal open; <kbd>Ctrl</kbd>+<kbd>C</kbd> stops the host.</p></li>
+</ol>
+
+<h2 key="first-session">A first session</h2>
+<p>On its first start the host finds no league, and the window seeds the four demonstration clubs (FOCO, KELW, RIMO and SASK, all fictional) and records them. The following session scores the opening of a game, queries it, and checks the league.</p>
+<pre>rink new FOCO KELW              creates game G1 between the two clubs and selects it
+rink G1                         enters RINK mode; the prompt shows the score and the clock
+T 20:00 P1                      sets the scoreboard clock: 20:00 in the first period
+LINE FOCO SMIT HALA GOUL VAHN MORE    FOCO's skaters on the ice
+LINE KELW BARK WITC DELI EMBE ZIEL    KELW's skaters on the ice
+FOCO SMIT FOW/N                 FOCO's SMIT wins the faceoff in the neutral zone
+GO                              starts the clock
+FOCO GOUL S/1W                  a wrist shot from zone 1: expected goals and danger class
+FOCO SMIT G/2P                  a goal: score, plus/minus, stint rotation
+FOCO HALA A                     the primary assist, chained to the open goal
+KELW BARK P2/TRP                a two-minute minor for tripping: FOCO goes 5 on 4
+Q BOX                           the box score
+Q AUDIT                         every line, who typed it, from which loopback address
+EXIT                            leaves RINK mode
+store verify                    re-reads every seal and chain of the league from disk</pre>
+<p>Each line answers with its outcome — <code>COMMITTED</code>, <code>APPLIED</code>, <code>REJECTED</code> with a reason, or <code>DUPLICATE</code> — after the host has recorded it. The header strip shows <i>recorded</i> and the time. <code>rink sim 4</code> types four synthetic games through the same command path, so that every query and model has data at once.</p>
+
+<h2>Stopping the host</h2>
+<p>The host stops on <kbd>Ctrl</kbd>+<kbd>C</kbd> in its console, on <b>stop host</b> in the window's header strip, or when its console is closed. Every recorded line is already on disk when it is acknowledged, so stopping loses nothing that was shown as recorded. The host records the stop in its event ledger and releases the data folder ({{ref:stopping}}).</p>
+
+<h2 key="troubleshooting">If something does not start</h2>
+<table class="t" key="tbl-troubleshooting" caption="First-start problems and their remedies">
+<colgroup><col style="width:30%"><col style="width:32%"><col style="width:38%"></colgroup>
+<thead><tr><th>What is seen</th><th>Cause</th><th>Remedy</th></tr></thead>
+<tbody>
+<tr><td>"RINK-VT needs Python 3.10 or newer"</td><td>No suitable Python on the path</td><td>Install Python 3.10 or newer and start again</td></tr>
+<tr><td>REFUSED … does not match RELEASE_MANIFEST.json (exit 4)</td><td>A program file was changed, removed or added under <code>photon/</code>, <code>ui/</code> or <code>engine/</code>, or line endings were converted</td><td>Restore the release from its source; a maintainer reseals a deliberate change ({{ref:release-procedure}})</td></tr>
+<tr><td>REFUSED: the data folder is in use (exit 5)</td><td>Another host has this data folder open</td><td>Use that host's window, or stop it first. A lock left by a host that is gone is taken over automatically</td></tr>
+<tr><td>REFUSED: the league … cannot be opened (exit 6)</td><td>A file of the league is damaged or was edited</td><td>Run <code>--verify-only</code> for the report and restore the folder from a backup ({{ref:recovery}})</td></tr>
+<tr><td>REFUSED: loopback lease … (exit 7)</td><td>The lease table is damaged, full, locked by another program, or written for another pool</td><td>{{ref:lease-file}}</td></tr>
+<tr><td>"No Edge, Chrome or Chromium was found"</td><td>No supported browser installed</td><td>Open the printed address in a browser, or start with <code>--allow-default-browser-fallback</code></td></tr>
+<tr><td>The window shows <i>could not load the league</i></td><td>The host stopped, or the window was opened from another host's address</td><td>Start the host again and use the window it opens</td></tr>
+</tbody>
+</table>

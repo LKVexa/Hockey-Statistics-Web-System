@@ -1,0 +1,27 @@
+RINK-VT Workbench, LK/Vexa edition (Photon-hosted) 2.5.0-lkvexa.1
+Copyright (C) 2026 RUSSELL PHILIP SMITHSON
+Licensed under the GNU General Public License, version 3 only (GPL-3.0-only). See LICENSE and COPYRIGHT.
+
+Provenance
+  engine/        The statistics engine of RINK-VT 2.5.0-rinkvt.1, the reference edition (the HERMIT gateway and
+                 RINK-VT statistics terminal), by the same author: the command language, frames, game actor,
+                 models, roster importer and the HK001 laboratory, as source files, unchanged by this edition
+                 except where the reference edition itself changed them for it (a host-kept league).
+  engine/rink/hk001/
+                 Contains code derived from the Go standard library; its notices and licence terms are kept in
+                 engine/rink/hk001/NOTICE.md and continue to apply to those parts.
+  photon/        The Photon host follows the design of VEC1 Photon (Design Photon 0.6.0, Generic Photon 0.2.0,
+                 WindowsSafe-r1, Copyright 2026 RUSSELL PHILIP SMITHSON, GPL-3.0-only): a Python control
+                 plane, a Chromium-family renderer window on an isolated profile, a loopback JSON API guarded by
+                 Host, Origin and a per-launch token, and a release-integrity gate. No Photon source file is copied.
+  contracts/     MSSL 0.3 records in the observed subset described by the MSSL Writers Corpus 1.0.0, and JA Core
+                 0.3 contract sources in the provisional grammar of the JA21 JA Core Application Language Suite
+                 1.0.0 (both Copyright 2026 RUSSELL PHILIP SMITHSON, GPL-3.0-only). Neither corpus is bundled.
+                 The JA sources are modeled contracts: no JA Core parser, compiler or VM is supplied or claimed.
+
+Data
+  The four demonstration clubs and every simulated game are fictional. HK001 is a deterministic synthetic
+  research laboratory; it gives no forecasts, odds, or roster, medical, scouting or officiating advice.
+
+A software licence does not imply sponsorship, endorsement or certification by its publisher or by any upstream
+project or league.

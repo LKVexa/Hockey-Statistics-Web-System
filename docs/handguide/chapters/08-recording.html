@@ -1,0 +1,119 @@
+<h1 key="recording">Recording, durability and recovery</h1>
+<p class="lede">The workbench keeps one rule above all others: the window shows a command's result only after the host has written and synced what the command changed. This chapter states the rule, the protocol that keeps it, and what happens when something goes wrong.</p>
+
+<h2 key="recording-rule">The recording rule</h2>
+<p>A command that changes the league — a scored line, a correction, a new game, a roster import, a simulation — changes the league in the window's memory first, because the engine runs there. Before the command's result is printed, the window sends the host everything the command changed and waits for the host's answer. The host answers only after the change is on disk. If the host refuses or cannot be reached, the window prints <b>NOT RECORDED</b> and the reason, discards its own league and loads the league again from the host. At every moment, therefore, what the window shows as recorded is on disk, and nothing it shows was invented by the window alone.</p>
+
+<h2 key="commit-protocol">The commit protocol</h2>
+<figure key="fig-commit" caption="One command, from Enter to its result">
+<svg viewBox="0 0 640 300" xmlns="http://www.w3.org/2000/svg" font-family="Carlito, 'DejaVu Sans', FreeSans, sans-serif" font-size="8.6">
+  <defs><marker id="a3" markerWidth="7" markerHeight="7" refX="6" refY="3.5" orient="auto"><path d="M0,0 L7,3.5 L0,7 z" fill="#1d2b4f"/></marker></defs>
+  <g font-weight="700" fill="#1d2b4f" font-size="9.4" text-anchor="middle"><text x="80" y="16">Scorer</text><text x="250" y="16">Engine (window)</text><text x="430" y="16">Photon host</text><text x="585" y="16">Disk</text></g>
+  <g stroke="#9aa5b5" stroke-dasharray="3 3"><line x1="80" y1="22" x2="80" y2="292"/><line x1="250" y1="22" x2="250" y2="292"/><line x1="430" y1="22" x2="430" y2="292"/><line x1="585" y1="22" x2="585" y2="292"/></g>
+  <g stroke="#1d2b4f" stroke-width="1.1" fill="none">
+    <line x1="80" y1="40" x2="246" y2="40" marker-end="url(#a3)"/>
+    <path d="M250 56 h26 v20 h-24" marker-end="url(#a3)"/>
+    <line x1="250" y1="96" x2="426" y2="96" marker-end="url(#a3)"/>
+    <path d="M430 112 h26 v20 h-24" marker-end="url(#a3)"/>
+    <line x1="430" y1="152" x2="581" y2="152" marker-end="url(#a3)"/>
+    <line x1="430" y1="176" x2="581" y2="176" marker-end="url(#a3)"/>
+    <line x1="430" y1="200" x2="581" y2="200" marker-end="url(#a3)"/>
+    <line x1="430" y1="230" x2="254" y2="230" marker-end="url(#a3)"/>
+    <line x1="250" y1="262" x2="84" y2="262" marker-end="url(#a3)"/>
+  </g>
+  <g fill="#1b2130">
+    <text x="88" y="35">FOCO SMIT G/2P ⏎</text>
+    <text x="282" y="64">lex, compile to frames, apply atomically;</text><text x="282" y="75">append frame + meta line to the ledger</text>
+    <text x="258" y="91">POST /api/commit {base, registry?, ledgers}</text>
+    <text x="462" y="120">admit: seal current, games kept,</text><text x="462" y="131">start = ledger end, every pair sealed</text>
+    <text x="438" y="147">registry: .new seal, text, rename, rename</text>
+    <text x="438" y="171">ledger lines: one write, fsync</text>
+    <text x="438" y="195">event ledger: commit, fsync</text>
+    <text x="262" y="225">200 {registrySha, counts}</text>
+    <text x="92" y="257">COMMITTED #7 P1 14:02 FOCO SMIT G …</text>
+  </g>
+  <g fill="#9b1c1c" font-size="8"><text x="262" y="246">409 / 413 / 400 / no answer → NOT RECORDED, load the league again</text></g>
+  <text x="100" y="285" fill="#0d6b73" font-size="8" font-weight="650">the result is printed only after the host's answer</text>
+</svg>
+</figure>
+<ol class="proc">
+<li><p><b>The command runs in the engine.</b> The line is compiled and applied; every accepted frame is appended to its game's ledger in memory with its meta line, and a registry change raises the registry's revision.</p></li>
+<li><p><b>The window gathers the change.</b> It compares the league with what it last saw recorded: the registry text if the revision changed (serialised as the reference edition serialises it), and, for every game, the ledger entries after the last recorded one, as 128-byte pairs (a frame and its meta line). A ledger always holds whole pairs; an odd count is an error that stops the commit.</p></li>
+<li><p><b>The window commits.</b> It sends <code>POST /api/commit</code> with the registry seal it last saw (<code>base</code>), the registry text if it changed, and per game a batch: the game's key and UUID, the index of the first pair (<code>start</code>) and the pairs in base64. A long change, such as a simulation, is sent as several commits of at most about 9 MB of entries each, the registry with the first.</p></li>
+<li><p><b>The host admits or refuses.</b> Under its store lock it checks the commit ({{ref:store-checks}}). Nothing is written unless every check passes.</p></li>
+<li><p><b>The host writes and syncs.</b> The registry first (when it changed), through its new seal and two renames ({{ref:power-loss}}); then each game's new lines, appended in one write and synced; then a <code>commit</code> event in the event ledger.</p></li>
+<li><p><b>The host answers</b> with the new registry seal and each game's count of pairs. The window records them, shows <i>recorded</i>, and the command prints its result.</p></li>
+</ol>
+
+<h2 key="store-checks">What the host checks</h2>
+<table class="t" key="tbl-admission" caption="Admission checks of a commit, in order">
+<colgroup><col style="width:5%"><col style="width:57%"><col style="width:38%"></colgroup>
+<thead><tr><th>#</th><th>Check</th><th>Refusal</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>The request is well formed: strict JSON (no duplicate keys, no NaN, depth ≤ 64), at most 32 MiB, not chunked, <code>application/json</code>, with the launch's token</td><td>400, 411, 413, 415, 403 ({{ref:guards}})</td></tr>
+<tr><td>2</td><td><code>base</code> equals the seal of the registry on disk</td><td>409 <i>the league changed since this window loaded it</i></td></tr>
+<tr><td>3</td><td>A new registry is valid: schema <code>rinkvt.registry.v1</code>, at most 16 MiB, <code>teams</code>, <code>players</code>, <code>games</code> and <code>notes</code> are lists, every game has a key of 1–24 letters, digits, <code>_</code> or <code>-</code> and a UUID, no key twice</td><td>400 <code>bad_registry</code>, 413</td></tr>
+<tr><td>4</td><td>Every game of the stored registry is in the new one with the same UUID: games are never removed</td><td>409</td></tr>
+<tr><td>5</td><td>Every batch names a game of the registry with its UUID, holds valid base64 and a whole number of 128-byte pairs</td><td>400 <code>bad_request</code></td></tr>
+<tr><td>6</td><td>Every batch starts where its ledger ends</td><td>409 <i>this batch starts at … the ledger holds …</i></td></tr>
+<tr><td>7</td><td>No ledger exceeds 40 000 pairs (the engine accepts at most 20 000 frames a game)</td><td>413 <code>too_large</code></td></tr>
+<tr><td>8</td><td>Every pair passes the engine's seals: the frame's CRC-32C, the frame's game hash (bytes 32–35 equal the first four bytes of the game's UUID), the meta line's magic and CRC-32C ({{ref:frame}}, {{ref:meta}})</td><td>400 <code>bad_pair</code></td></tr>
+</tbody>
+</table>
+
+<h2 key="refused">When a commit is refused</h2>
+<p>A refusal leaves the disk as it was. The window prints, in red, <code>NOT RECORDED:</code> with the host's reason, sets the host strip to <i>NOT RECORDED</i>, leaves RINK mode, and loads the league from the host again, so that it shows only what is recorded. The command that caused it prints nothing further. If the league cannot be loaded again — the host has stopped — the window says so and asks to be reloaded once the host runs. A line shown as NOT RECORDED is not in the league; to record it, type it again.</p>
+
+<h2 key="windows">Several windows</h2>
+<p>Several windows may be open on one host; each holds its own copy of the league. Two windows may score different games at the same time. When two windows change the same game, or the registry, the first commit is admitted and the second is refused (check 2 or check 6), and the second window reloads, now showing the first window's change. No interleaving of two windows' entries in one ledger is possible.</p>
+
+<h2 key="power-loss">Power loss and crashes</h2>
+<p>The host writes in an order that leaves the disk in a state it can open after a stop at any instant:</p>
+<ul>
+<li><b>Ledger lines</b> are appended in one write and synced. A stop during the write leaves a prefix of the lines, the last possibly cut off. A cut-off line — one without its terminating newline — was never acknowledged; opening the league drops it, and the window reports which games had one. Complete lines before it are kept: a commit cut off by a power loss may thus survive in part, as a prefix of what was sent, and after the restart the window shows exactly what is on disk.</li>
+<li><b>The registry</b> is replaced in four steps: its new seal is written and synced as <code>registry.sha256.new</code>; the new text is written and synced to a temporary file; the text is renamed over <code>registry.json</code>; the new seal is renamed over <code>registry.sha256</code>, and the folder is synced. A stop before the first rename leaves the old registry with its seal, and the next open removes the leftovers. A stop between the two renames leaves a text that matches the pending seal, and the next open completes the commit.</li>
+<li><b>The registry is written before the ledger lines</b> of the same commit, so a ledger never holds entries of a game the registry does not know.</li>
+<li><b>Events</b> are appended and synced like ledger lines.</li>
+</ul>
+<p>Every acknowledged commit is complete on disk: the answer is sent after the last sync.</p>
+
+<h2>Damage</h2>
+<p>Anything other than a cut-off last line is damage, and the host refuses to open a damaged league (exit 6) rather than open what remains. Damage includes: a registry that matches neither its seal nor a pending one; a ledger line that breaks the chain (a wrong sequence number or previous hash), does not match its own hash, does not hold two 64-byte entries, or fails the engine's seals; a ledger header that names another game, UUID or format; and an event ledger whose chain is broken. The refusal names the file and the line.</p>
+<div class="warning"><p>An edited file is damage. Editing a ledger or the registry by hand — even to "fix" it — makes the league refuse to open. Restore from a backup instead ({{ref:recovery}}).</p></div>
+
+<h2 key="verification-report">Verification</h2>
+<p>Two commands re-read a league from disk and check every seal and chain, repairing nothing: <code>store verify</code> in the window (and the strip's <b>verify store</b>), which asks the running host, and <code>photon/rinkvt.py --verify-only --data DIR</code>, which checks a folder no host has open — a backup, a copy — and skips the league with a note when a host holds it. Their report has the following parts.</p>
+<table class="t" key="tbl-verify-report" caption="The verification report">
+<colgroup><col style="width:22%"><col style="width:78%"></colgroup>
+<thead><tr><th>Part</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td><code>release</code> (only <code>--verify-only</code>)</td><td><code>ok</code>, the scope <code>all</code>, the version, the number of files, and the lists <code>missing</code>, <code>changed</code> and <code>unlisted</code></td></tr>
+<tr><td><code>registry</code></td><td><code>ok</code>, the seal <code>sha256</code> and the number of games; or the error</td></tr>
+<tr><td><code>games</code></td><td>Per game: the key, <code>ok</code>, the number of pairs and the tip hash of its chain; or the error naming the line</td></tr>
+<tr><td><code>events</code></td><td><code>ok</code> and the number of events; or the error</td></tr>
+<tr><td><code>ok</code></td><td>True only when every part is</td></tr>
+</tbody>
+</table>
+<p>A verification that finds a cut-off last line reports it as damage ("ends with an unfinished line"): it repairs nothing, and the next start of a host drops the line.</p>
+
+<h2 key="recovery">Recovery procedures</h2>
+<h3>A league that refuses to open</h3>
+<ol class="proc">
+<li><p>Run <code>python photon/rinkvt.py --verify-only --data DIR</code> and keep the report: it names every damaged file and line.</p></li>
+<li><p>Move the damaged data folder aside; do not delete it.</p></li>
+<li><p>Restore the most recent backup of the data folder ({{ref:backup}}) to its place, and verify it the same way.</p></li>
+<li><p>Start the host. Lines recorded after the backup are not in the restored league; enter them again from the paper record or the scorer's notes.</p></li>
+</ol>
+<h3>One damaged game</h3>
+<p>A damaged ledger of one game may be replaced by that file from a backup, provided the backup's registry holds the same game with the same UUID; the game then holds the entries the backup held. Verify the folder before starting the host.</p>
+<h3>A lock left behind</h3>
+<p>A lock whose process is gone is taken over by the next start without action. A lock that names another computer is refused; if that computer no longer uses the folder, remove <code>.rinkvt.lock</code> by hand.</p>
+
+<h2>Data custody obligations</h2>
+<div class="reqs">
+<div class="req"><span class="rid">DAT-01</span><span>The operator SHOULD back up the data folder after every session in which games were scored, and MUST keep at least one backup on a different disk ({{ref:backup}}).</span></div>
+<div class="req"><span class="rid">DAT-02</span><span>A backup SHOULD be verified with <code>--verify-only</code> when it is made and before it is restored.</span></div>
+<div class="req"><span class="rid">DAT-03</span><span>A league that refuses to open MUST be restored from a backup, not repaired by hand.</span></div>
+<div class="req"><span class="rid">DAT-04</span><span>The scorer SHOULD keep a paper or written record of a game until its lines are recorded and the league is backed up.</span></div>
+<div class="req"><span class="rid">DAT-05</span><span>The lease table SHOULD be backed up with the league, so that this computer keeps its address after a restore ({{ref:lease-file}}).</span></div>
+</div>

@@ -1,0 +1,87 @@
+<h1 key="overview">System overview</h1>
+<p class="lede">The workbench is a scorer's console and a statistics engine in one window, with a small host program that keeps the league on disk and never lets the window show a result that is not recorded.</p>
+
+<h2>The workbench in brief</h2>
+<p>An operator starts the Photon host. The host checks that its own code is the code the release sealed, takes the data folder for itself, opens the league, gives this computer its static loopback address, listens on that address only, and opens the workbench in a Chromium-family window with a profile of its own. The window loads the league from the host and replays every game's ledger through the engine. From then on the engine runs in the window: each line the scorer types is lexed, compiled to frames and applied by the game actor in memory, and whatever the line changed — new ledger entries, a changed registry — is sent to the host, which checks it, writes it, syncs it to disk and only then answers. The window shows the line's result after that answer, and only after it.</p>
+
+<h2 key="editions">Two editions</h2>
+<p>RINK-VT exists in two editions. They share the engine — the language, the frame, the actor, the models and HK001 — and the static loopback lease algorithm, and differ in what surrounds the engine.</p>
+<table class="t" key="tbl-editions" caption="The two editions compared">
+<colgroup><col style="width:22%"><col style="width:39%"><col style="width:39%"></colgroup>
+<thead><tr><th>Aspect</th><th>LK/Vexa edition {{version}}</th><th>Reference edition {{reference}}</th></tr></thead>
+<tbody>
+<tr><td>Runtime</td><td>Photon host: Python 3.10 or newer, standard library only; renderer: an installed Edge, Chrome or Chromium</td><td>Node.js gateway (HERMIT), worker threads or processes; optional Electron desktop profile</td></tr>
+<tr><td>Where the engine runs</td><td>In the renderer window</td><td>In the gateway process, for every client</td></tr>
+<tr><td>Users</td><td>One operator identity, <code>operator@local</code>, with administrative capability; several windows on one host</td><td>Principals with capabilities <code>rink.query</code>, <code>rink.score</code>, <code>rink.admin</code>; club tenants; SPIRAL terminals and a browser dashboard</td></tr>
+<tr><td>Network</td><td>A loopback listener only</td><td>A network listener (wide use) or loopback; live feeds over WebSocket</td></tr>
+<tr><td>Ledger on disk</td><td>Hash-chained JSON-lines files, one per game, plus a sealed registry</td><td>SSD-RAM files (64-byte records, out-of-place pages), plus the same sealed registry</td></tr>
+<tr><td>Static loopback addresses</td><td>This computer's address gets a lease; the host listens on it and every line records it</td><td>Every client IP address that signs in gets a lease; sessions, logs and the audit trail use it</td></tr>
+<tr><td>Release integrity</td><td>The host refuses to start when its code differs from <code>RELEASE_MANIFEST.json</code></td><td><code>tools/verify.js</code> and <code>tools/mkmanifest.js --check</code> against <code>release/manifest.json</code></td></tr>
+<tr><td>Contracts</td><td>MSSL records and JA21 sources, checked by the release's tools and the MSSL corpus validator</td><td>None</td></tr>
+<tr><td>Typical use</td><td>A scorer's bench, a club's own statistics, a classroom, an air-gapped computer</td><td>A league office serving several scorers and readers at once</td></tr>
+</tbody>
+</table>
+
+<h2 key="components">Components of the LK/Vexa edition</h2>
+<figure key="fig-components" caption="Components of the LK/Vexa edition and the boundaries between them">
+<svg viewBox="0 0 640 352" xmlns="http://www.w3.org/2000/svg" font-family="Carlito, 'DejaVu Sans', FreeSans, sans-serif" font-size="9.5">
+  <defs><marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#1d2b4f"/></marker></defs>
+  <rect x="10" y="10" width="270" height="214" rx="6" fill="#f3f5f9" stroke="#1d2b4f" stroke-width="1.2"/>
+  <text x="22" y="30" font-weight="700" fill="#1d2b4f" font-size="10.5">Renderer window</text>
+  <text x="22" y="43" fill="#566079" font-size="8.5">Edge, Chrome or Chromium · app mode · isolated profile</text>
+  <rect x="24" y="54" width="242" height="38" rx="4" fill="#fff" stroke="#9aa5b5"/>
+  <text x="34" y="70" font-weight="600" fill="#1d2b4f">Workbench page</text><text x="34" y="84" fill="#566079" font-size="8.3">ui/app.js · console, chips, game panel, rink map</text>
+  <rect x="24" y="100" width="242" height="52" rx="4" fill="#fff" stroke="#9aa5b5"/>
+  <text x="34" y="116" font-weight="600" fill="#1d2b4f">Engine</text><text x="34" y="130" fill="#566079" font-size="8.3">engine/ · lexer, frames, game actor, queries,</text><text x="34" y="142" fill="#566079" font-size="8.3">models, roster importer, HK001 (563 + 109 codes)</text>
+  <rect x="24" y="160" width="242" height="52" rx="4" fill="#fff" stroke="#9aa5b5"/>
+  <text x="34" y="176" font-weight="600" fill="#1d2b4f">League in memory</text><text x="34" y="190" fill="#566079" font-size="8.3">RinkService: registry, one actor per game,</text><text x="34" y="202" fill="#566079" font-size="8.3">ledger entries replayed from the host</text>
+  <rect x="360" y="10" width="270" height="214" rx="6" fill="#f3f5f9" stroke="#1d2b4f" stroke-width="1.2"/>
+  <text x="372" y="30" font-weight="700" fill="#1d2b4f" font-size="10.5">Photon host</text>
+  <text x="372" y="43" fill="#566079" font-size="8.5">Python 3.10+ · standard library only · photon/</text>
+  <g font-size="8.6">
+  <rect x="374" y="54" width="242" height="26" rx="4" fill="#fff" stroke="#9aa5b5"/><text x="384" y="71"><tspan font-weight="600" fill="#1d2b4f">HTTP server</tspan><tspan fill="#566079">  server.py · Host, Origin, token</tspan></text>
+  <rect x="374" y="86" width="242" height="26" rx="4" fill="#fff" stroke="#9aa5b5"/><text x="384" y="103"><tspan font-weight="600" fill="#1d2b4f">League store</tspan><tspan fill="#566079">  store.py · seals, chains, commits</tspan></text>
+  <rect x="374" y="118" width="242" height="26" rx="4" fill="#fff" stroke="#9aa5b5"/><text x="384" y="135"><tspan font-weight="600" fill="#1d2b4f">Lease table</tspan><tspan fill="#566079">  loopback.py · static 127.x.y.z</tspan></text>
+  <rect x="374" y="150" width="242" height="26" rx="4" fill="#fff" stroke="#9aa5b5"/><text x="384" y="167"><tspan font-weight="600" fill="#1d2b4f">Release gate</tspan><tspan fill="#566079">  integrity.py · RELEASE_MANIFEST.json</tspan></text>
+  <rect x="374" y="182" width="242" height="26" rx="4" fill="#fff" stroke="#9aa5b5"/><text x="384" y="199"><tspan font-weight="600" fill="#1d2b4f">Renderer launcher</tspan><tspan fill="#566079">  renderer.py · app mode</tspan></text>
+  </g>
+  <line x1="282" y1="88" x2="356" y2="88" stroke="#1d2b4f" stroke-width="1.2" marker-end="url(#ar)"/>
+  <line x1="356" y1="112" x2="284" y2="112" stroke="#1d2b4f" stroke-width="1.2" marker-end="url(#ar)"/>
+  <text x="320" y="80" text-anchor="middle" font-size="8" fill="#0d6b73" font-weight="600">commit</text>
+  <text x="320" y="126" text-anchor="middle" font-size="8" fill="#0d6b73" font-weight="600">recorded</text>
+  <text x="320" y="150" text-anchor="middle" font-size="7.6" fill="#566079">loopback HTTP</text>
+  <text x="320" y="160" text-anchor="middle" font-size="7.6" fill="#566079">X-VEC1-Token</text>
+  <rect x="160" y="262" width="320" height="80" rx="6" fill="#fff" stroke="#1d2b4f" stroke-width="1.2" stroke-dasharray="4 2"/>
+  <text x="174" y="281" font-weight="700" fill="#1d2b4f" font-size="10.5">Data folder (disk)</text>
+  <text x="174" y="297" fill="#566079" font-size="8.4">league/registry/registry.json + registry.sha256</text>
+  <text x="174" y="310" fill="#566079" font-size="8.4">league/ledger/&lt;key&gt;-&lt;uuid8&gt;.jsonl · events.jsonl</text>
+  <text x="174" y="323" fill="#566079" font-size="8.4">loopback/leases · browser_profile/ · .rinkvt.lock</text>
+  <line x1="495" y1="226" x2="430" y2="259" stroke="#1d2b4f" stroke-width="1.2" marker-end="url(#ar)"/>
+  <text x="520" y="250" font-size="8" fill="#0d6b73" font-weight="600">write, fsync,</text><text x="520" y="260" font-size="8" fill="#0d6b73" font-weight="600">then answer</text>
+  <line x1="14" y1="240" x2="626" y2="240" stroke="#9b1c1c" stroke-width="0.8" stroke-dasharray="2 3"/>
+  <text x="14" y="252" font-size="7.6" fill="#9b1c1c">this computer only: nothing listens on a network interface</text>
+</svg>
+</figure>
+<p>The renderer and the host are separate processes ({{ref:fig-components}}). The renderer holds the league in memory and does all the computing; the host holds the league on disk and does all the keeping. Neither trusts the other further than it must: the host checks every ledger entry against the engine's own seals before it writes it ({{ref:store-checks}}), and the window treats a refused commit as the truth and reloads ({{ref:refused}}).</p>
+
+<h2 key="pipeline">From a typed line to a statistic</h2>
+<ol class="proc">
+<li><p><b>Lexing and assistance.</b> As the scorer types, the lexer of the language classifies the line (empty, incomplete, valid or invalid), offers grey ghost text and candidates, and names the reason a line cannot become valid ({{ref:input-assist}}).</p></li>
+<li><p><b>Compiling.</b> On <kbd>Enter</kbd> the line is compiled to one or more 64-byte frames: a UUIDv7, the keystroke onset and commit times in nanoseconds, the game's hash, a Lamport counter, the team, player, stat and modifier codes, the coordinates and a CRC-32C ({{ref:frame}}).</p></li>
+<li><p><b>Applying.</b> The game actor applies the frames of the line atomically: all or none. It latches the clock at the keystroke, binds assists to the open goal, infers rebounds and rushes, tracks penalties, strength and stints, and computes expected goals ({{ref:actor}}).</p></li>
+<li><p><b>Recording.</b> Each accepted frame is appended to the game's ledger in memory together with a 64-byte meta line (who typed it, when, from which loopback address). The window then commits the new entries to the host, which writes and syncs them ({{ref:recording}}).</p></li>
+<li><p><b>Deriving.</b> Queries and models read the actors' state: <code>Q BOX</code>, <code>Q XG</code>, <code>Q STINTS</code>, standings and leaders, RAPM, GSAx, GAR/WAR, NHLe, heat maps, and the 109 HK001 inputs with their provenance ({{ref:queries}}, {{ref:models}}).</p></li>
+</ol>
+
+<h2>What is kept, and where</h2>
+<p>Everything durable is in the data folder ({{ref:data-folder}}): the registry (leagues, teams, players, games, notes), one ledger per game, the host's event ledger, the lease table and the window's browser profile. The renderer keeps nothing of its own: closing the window loses nothing that was recorded, and a window that is reopened loads the league again from the host. The program files are separate from the data folder and sealed by the release manifest ({{ref:manifest}}).</p>
+
+<h2 key="principles">Design principles</h2>
+<dl class="def">
+<dt>Record before show</dt><dd>A command's result appears only after the host has synced what the command changed. A refusal is shown as NOT RECORDED and the window reloads, so it never shows what is not on disk.</dd>
+<dt>Nothing unchecked is kept</dt><dd>Every entry the host writes passes the engine's CRC-32C seals and belongs to its game; every stored file is sealed or hash-chained; damage refuses to open and is named.</dd>
+<dt>One engine</dt><dd>The engine's source files are the reference edition's, unchanged except for the two options the reference edition itself added for a host that keeps the league ({{ref:engine-options}}).</dd>
+<dt>One folder, one host</dt><dd>A data folder is held by an exclusive lock; a second host is refused.</dd>
+<dt>A sealed release</dt><dd>The host refuses to run code that the release did not seal.</dd>
+<dt>Honest maturity</dt><dd>The contracts say OPERATIONAL only with the tests that show it, and the qualification names the platform it ran on ({{ref:contracts}}).</dd>
+</dl>

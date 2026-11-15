@@ -1,0 +1,34 @@
+ja source 0.3
+module rinkvt.contract.store
+use Core
+policy no_network
+
+const max_registry_bytes: Count = 16777216
+const max_pairs_per_game: Count = 40000
+record LedgerBatch { game: Text, uuid: Text, start: Count, data: Bytes }
+record CommitRequest { registry: Option<Text>, base: Option<Text>, ledgers: List<LedgerBatch> }
+record CommitAnswer { registry_sha: Text, counts: Map<Text, Count> }
+record LedgerLine { n: Count, frame: Text, meta: Text, prev: Text, hash: Text }
+enum StoreError { Conflict, BadRequest, BadPair, TooLarge, Damaged }
+function line_hash(prev: Text, frame_hex: Text, meta_hex: Text, n: Count) -> Text effects { pure } {
+    return Sha256.hex(Text.concat([prev, "\n", frame_hex, meta_hex, "\n", Text.of(n)]))
+}
+function admit(store: LeagueStore, request: CommitRequest) -> Result<CommitRequest, StoreError> effects { pure } {
+    match request {
+        r if r.base != store.registry_sha => Err(StoreError.Conflict),
+        r if store.games().any(|g: Game| r.games().uuid_of(g.key) != g.uuid) => Err(StoreError.Conflict),
+        r if r.ledgers.any(|b: LedgerBatch| b.start != store.ledger(b.game).count) => Err(StoreError.Conflict),
+        r if r.ledgers.any(|b: LedgerBatch| b.data.length % 128 != 0) => Err(StoreError.BadRequest),
+        r if r.ledgers.any(|b: LedgerBatch| store.ledger(b.game).count + b.data.length / 128 > max_pairs_per_game) => Err(StoreError.TooLarge),
+        r => Ok(r),
+    }
+}
+function commit(store: LeagueStore, request: CommitRequest) -> Result<CommitAnswer, StoreError> effects { file_read, file_write, fsync } {
+    match admit(store, request) {
+        Err(e) => Err(e),
+        Ok(r) => Ok(store.write_registry_then_seal(r.registry).append_chained_lines_synced(r.ledgers).answer()),
+    }
+}
+let empty: CommitRequest = CommitRequest { registry: None, base: None, ledgers: [] }
+assert empty.ledgers.length == 0
+emit json empty

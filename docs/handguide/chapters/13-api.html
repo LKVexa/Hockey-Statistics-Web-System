@@ -1,0 +1,84 @@
+<h1 key="api">The host API</h1>
+<p class="lede">The host speaks HTTP/1.1 on its loopback address. Its API has ten routes; every one is guarded, and every answer carries the same restrictive headers.</p>
+
+<h2 key="routes">Routes</h2>
+<table class="t" key="tbl-routes" caption="Routes of the Photon host">
+<colgroup><col style="width:22%"><col style="width:8%"><col style="width:42%"><col style="width:28%"></colgroup>
+<thead><tr><th>Route</th><th>Token</th><th>Answer</th><th>Errors</th></tr></thead>
+<tbody>
+<tr><td><code>GET /</code>, <code>/index.html</code></td><td>no</td><td>The workbench page, carrying this launch's token and this computer's lease and IP address</td><td>421</td></tr>
+<tr><td><code>GET /workbench.js</code>, <code>/workbench.css</code></td><td>no</td><td>The renderer bundle; the styles</td><td>421</td></tr>
+<tr><td><code>GET /api/health</code></td><td>no</td><td><code>{"ok": true, "version"}</code></td><td>421</td></tr>
+<tr><td><code>GET /api/edition</code></td><td>yes</td><td>Product, edition, versions, runtime, the lease, the client address, the pool, the address bound, the data folder, the number of host events, and the games whose cut-off last line was dropped on opening</td><td>403, 421</td></tr>
+<tr><td><code>GET /api/league</code></td><td>yes</td><td><code>{"registry": text or null, "registrySha", "games": [{"key", "uuid", "pairs"}]}</code></td><td>403, 421</td></tr>
+<tr><td><code>GET /api/ledgers?sha=</code></td><td>yes</td><td>Every game's pairs, 128 bytes each, in the order <code>/api/league</code> listed the games, as <code>application/octet-stream</code></td><td>409 when <code>sha</code> is not the current seal</td></tr>
+<tr><td><code>GET /api/verify</code></td><td>yes</td><td>The verification report ({{ref:verification-report}})</td><td>403, 421</td></tr>
+<tr><td><code>POST /api/commit</code></td><td>yes</td><td><code>{"registrySha", "counts": {game: pairs}}</code> after the commit is on disk ({{ref:commit-protocol}})</td><td>400, 403, 409, 411, 413, 415, 421, 500</td></tr>
+<tr><td><code>POST /api/shutdown</code></td><td>yes</td><td><code>{"ok": true}</code>, then the host stops</td><td>403, 415, 421</td></tr>
+<tr><td>any other path</td><td>—</td><td>—</td><td>404; other methods (PUT, DELETE, PATCH, OPTIONS) 405</td></tr>
+</tbody>
+</table>
+<p>A <code>HEAD</code> request is answered like a <code>GET</code> without a body. The ledger route takes the seal so that the registry and the ledgers the window loads belong together: if a commit lands between the two requests, the window asks again.</p>
+
+<h2 key="guards">Admission of a request</h2>
+<p>Every request passes these guards in this order, and the first that fails answers. A <code>GET</code> or <code>HEAD</code> passes guards 1 and 4; a <code>POST</code> passes all six.</p>
+<table class="t" key="tbl-guards" caption="Request guards">
+<colgroup><col style="width:5%"><col style="width:16%"><col style="width:59%"><col style="width:20%"></colgroup>
+<thead><tr><th>#</th><th>Guard</th><th>Rule</th><th>Refusal</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Host</td><td>The Host header names the address and port the host listens on (and, when that is 127.0.0.1, also <code>localhost</code> and the port), compared exactly after lower-casing. This defeats DNS rebinding: a page of another site cannot make the browser send this host's name</td><td>421 misdirected request</td></tr>
+<tr><td>2</td><td>Origin</td><td>A <code>POST</code> that carries an Origin header names this host's own origin</td><td>403 cross-origin</td></tr>
+<tr><td>3</td><td>Media type</td><td>A <code>POST</code> is <code>application/json</code>, which a plain HTML form cannot send</td><td>415</td></tr>
+<tr><td>4</td><td>Token</td><td>Every <code>/api</code> route but <code>/api/health</code> carries <code>X-VEC1-Token</code> equal to this launch's 256-bit token, compared in constant time. The token is in the page the host served, which no other origin can read</td><td>403 forbidden</td></tr>
+<tr><td>5</td><td>Body</td><td>A declared <code>Content-Length</code> of at most 32 MiB; no chunked bodies; the body read in full</td><td>411, 413, 400</td></tr>
+<tr><td>6</td><td>JSON</td><td>Strict JSON: no duplicate keys, no NaN or Infinity, nesting at most 64 deep; the body is an object</td><td>400</td></tr>
+</tbody>
+</table>
+<p>Requests are not logged. An unexpected exception answers 500 with the exception's type only, and records an <code>internal_error</code> event naming the route and the type, never the request's content.</p>
+
+<h2 key="status-codes">Status codes</h2>
+<table class="t" key="tbl-status" caption="Status codes and their causes">
+<colgroup><col style="width:10%"><col style="width:90%"></colgroup>
+<thead><tr><th>Code</th><th>Cause</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Success</td></tr>
+<tr><td>400</td><td>Malformed JSON or request; a commit with an invalid registry (<code>bad_registry</code>), an unknown game or invalid data (<code>bad_request</code>), or an entry that fails the engine's seals (<code>bad_pair</code>)</td></tr>
+<tr><td>403</td><td>A missing or wrong token; a cross-origin change</td></tr>
+<tr><td>404 · 405</td><td>No such route · a method other than GET, HEAD and POST</td></tr>
+<tr><td>409</td><td>A conflict: the window's registry seal is stale, a batch does not start at its ledger's end, a game would be removed or changed, or the ledgers were asked for with a stale seal</td></tr>
+<tr><td>411 · 413 · 415</td><td>A chunked body · a body or ledger too large · not JSON</td></tr>
+<tr><td>421</td><td>The Host header does not name this host</td></tr>
+<tr><td>500</td><td>The league is damaged (<code>damaged</code>), or an internal error</td></tr>
+</tbody>
+</table>
+
+<h2 key="headers">Response headers</h2>
+<table class="t" key="tbl-headers" caption="Headers on every answer">
+<colgroup><col style="width:32%"><col style="width:68%"></colgroup>
+<thead><tr><th>Header</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><code>Content-Security-Policy</code></td><td><code>default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'</code></td></tr>
+<tr><td><code>Cache-Control</code></td><td><code>no-store</code></td></tr>
+<tr><td><code>X-Content-Type-Options</code></td><td><code>nosniff</code></td></tr>
+<tr><td><code>Referrer-Policy</code></td><td><code>no-referrer</code></td></tr>
+<tr><td><code>X-Frame-Options</code></td><td><code>DENY</code></td></tr>
+<tr><td><code>Cross-Origin-Opener-Policy</code> · <code>Cross-Origin-Resource-Policy</code></td><td><code>same-origin</code> · <code>same-origin</code></td></tr>
+<tr><td><code>Permissions-Policy</code></td><td><code>camera=(), microphone=(), geolocation=(), usb=(), serial=(), hid=()</code></td></tr>
+<tr><td><code>Server</code></td><td><code>RINK-VT-Photon/{{version}}</code></td></tr>
+</tbody>
+</table>
+
+<h2 key="commit-body">The commit request</h2>
+<pre>POST /api/commit HTTP/1.1
+Host: 127.20.66.113:8800
+Content-Type: application/json
+X-VEC1-Token: …
+
+{"base": "540f79c5…" | null,
+ "registry": "{\n \"schema\": \"rinkvt.registry.v1\", …}\n",          optional: the whole new registry text
+ "ledgers": [{"game": "G1", "uuid": "3913755b-7df0-56f3-a423-d01281f42143",
+              "start": 2, "data": "AZPv…"}]}                          base64 of whole 128-byte pairs</pre>
+<p><code>base</code> is the registry seal the window last saw, <code>null</code> before the first registry exists. The answer, after the commit is synced, is <code>{"registrySha": "…", "counts": {"G1": 3}}</code>. A commit that carries neither a registry nor entries is answered without writing anything.</p>
+
+<h2>The page</h2>
+<p>The page is <code>ui/workbench.html</code> with three placeholders replaced when it is served: the launch's token, this computer's lease and the IP address it is static for, each in a <code>&lt;meta&gt;</code> element the page reads at start (<code>rinkvt-token</code>, <code>rinkvt-local</code>, <code>rinkvt-client</code>). The page loads only <code>/workbench.css</code> and <code>/workbench.js</code> from the host, and has no inline script, style or event handler, as its policy requires.</p>

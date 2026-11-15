@@ -1,0 +1,43 @@
+<h1 key="limits">Limitations and known boundaries</h1>
+<p class="lede">This chapter states what the release does not do, and where its evidence ends. Each boundary is a fact about this release, not a defect report.</p>
+
+<h2>Platforms</h2>
+<ul>
+<li>The release is qualified on the platform its qualification record names ({{q_platform}}). The launchers for Windows (<code>START_RINKVT.cmd</code>, <code>VERIFY_RINKVT.cmd</code>) and the behaviour on macOS are written for those systems from their documented behaviour — Windows answering on all of 127.0.0.0/8, macOS only on 127.0.0.1 — but were not executed for this release.</li>
+<li>On macOS the host listens on 127.0.0.1 unless the lease address is added as an alias; the lease is recorded either way.</li>
+<li>The renderer must be a Chromium-family browser for the isolated app-mode window. The page itself uses standard web platform features, but other browsers were not tested.</li>
+</ul>
+
+<h2>Scale</h2>
+<ul>
+<li>The window holds the whole league in memory and replays every ledger when it opens, as the reference edition's offline bench does. A few hundred games are comfortable; the engine caps a league at 1 000 games and a game at 20 000 frames.</li>
+<li>Loading a league sends every ledger to the window at each opening. For a league of many seasons, a separate data folder per season keeps the opening short.</li>
+<li>League-wide models refit when the league changes; their cost grows with the number of stints.</li>
+</ul>
+
+<h2>Users and concurrency</h2>
+<ul>
+<li>One operator identity, <code>operator@local</code>, with administrative capability; there are no principals, roles or club tenants as in the reference edition.</li>
+<li>Several windows on one host are supported by refusing the later of two conflicting commits; they do not see each other's changes until they reload.</li>
+<li>One host per data folder; a data folder belongs to one computer at a time. There is no merge of two copies of a league.</li>
+</ul>
+
+<h2>Storage</h2>
+<ul>
+<li>Durability rests on the operating system's <code>fsync</code> and atomic rename. On storage that does not honour them — some network shares, some synchronised folders, some removable media — a power loss can lose or damage more than an unacknowledged last line. Keep the data folder on a local disk (OPS-03).</li>
+<li>A damaged league refuses to open as a whole; unlike the reference edition, a single damaged game is not quarantined while the rest runs. It is restored from a backup ({{ref:recovery}}).</li>
+<li>The ledger format differs from the reference edition's; there is no conversion tool in this release.</li>
+</ul>
+
+<h2>Engine and laboratory</h2>
+<ul>
+<li>The heat maps use the JavaScript kernel; the reference edition's XPU (WebAssembly) kernel is not part of this edition. Both give the same integers.</li>
+<li>The models are descriptive under declared assumptions; the NHLe factors are placeholders ({{ref:models}}). HK001 is a synthetic research laboratory with no predictive authority.</li>
+<li>The engine's own test suite runs in the reference edition; this edition exercises the engine through its browser tests and its store tests on real engine output.</li>
+</ul>
+
+<h2>Contracts</h2>
+<ul>
+<li>The JA21 sources are modeled: there is no JA Core parser, compiler or virtual machine, and nothing executes them ({{ref:ja21}}).</li>
+<li>The MSSL records are checked against the corpus's observed subset; MSSL constructs not demonstrated by the corpus are not used, and no record claims execution semantics the corpus does not define.</li>
+</ul>
